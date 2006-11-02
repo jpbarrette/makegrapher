@@ -212,7 +212,7 @@ class MakeTree:
     def normalize(self, dependency, lemma):
 	res = self.rTransform.search(dependency)
 	if res is not None:
-	    return re.escape(dependency[:res.start(2)]) + lemma + re.escape(dependency[res.end(2):])
+	    return dependency[:res.start(2)] + lemma + dependency[res.end(2):]
 	return dependency
 
     def genMap(self, lines):
@@ -223,7 +223,6 @@ class MakeTree:
 	    i += 1
 	    parts = line.split(":")
 	    if(len(parts) != 2):
-		pdb.set_trace()
 		print "Line is not valid"
 		print line
 	    targets = filter(lambda s: len(s), parts[0].split(" "))
@@ -251,6 +250,8 @@ class MakeTree:
 		    for dependency in self.patternedTargets[pattern]:
 			dep = self.normalize(dependency, res.group(1))
 			if dep not in self.nodes[target]:
+                            if dep == "example06.cpp":
+                                pdb.set_trace()
 			    self.nodes[target].append(dep)
     
     
