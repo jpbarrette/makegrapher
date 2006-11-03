@@ -71,7 +71,8 @@ class MakeTree:
 		 nodes = None, 
 		 makefile = None, 
 		 invalidateNotTargets = False,
-		 preFilterOut = None):
+		 preFilterOut = None,
+                 runMake = True):
 	if preFilterOut is None:
 	    preFilterOut = []
 	self.preFilterOut = preFilterOut
@@ -83,7 +84,7 @@ class MakeTree:
 	self.invalidateNotTargets = invalidateNotTargets
 	
 	if makefile is not None:
-	    lines = self.getMakefile(makefile)
+	    lines = self.getMakefile(makefile, runMake)
 	    self.genMap(lines)
 	elif nodes is not None:
 	    self.nodes = nodes
@@ -186,13 +187,16 @@ class MakeTree:
 	return lines
 
 
-    def getMakefile(self, filename):
-	command = "make -npr -f %s" % (filename)
-	ret = getCommandOutput(command, distinct = True)
-	if ret[0] != 0:
-	    raise RuntimeError, ret[2]
-	io = StringIO.StringIO(ret[1])
-	lines = io.readlines()
+    def getMakefile(self, filename, runMake):
+        if runMake:
+	    command = "make -npr -f %s" % (filename)
+	    ret = getCommandOutput(command, distinct = True)
+	    if ret[0] != 0:
+	        raise RuntimeError, ret[2]
+            io = StringIO.StringIO(ret[1])
+            lines = io.readlines()
+        else:
+            lines = open(filename).readlines()
 	
 	for i in range(len(lines)):
 	    if lines[i] == "# Implicit Rules\n":
@@ -301,7 +305,7 @@ if __name__ == "__main__":
 
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "F:to:f:s:S:", [])
+        opts, args = getopt.getopt(sys.argv[1:], "F:to:fT:s:S:", [])
     except getopt.GetoptError:
         # print help information and exit:
         usage()
@@ -313,6 +317,7 @@ if __name__ == "__main__":
     invalidateNotTargets = False
     preFilterOut = []
     makefile = None
+    runMake = True
     
     for o, a in opts:
         if o == "-o":
@@ -321,6 +326,9 @@ if __name__ == "__main__":
 	    preFilterOut.append(a)
         if o == "-f":
             makefile = a
+        if o == "-T":
+            makefile = a
+            runMake = False
         if o == "-s":
             seedsIn.append(a)
         if o == "-S":
@@ -333,7 +341,7 @@ if __name__ == "__main__":
         sys.exit(2)
 
 
-    tree = MakeTree(makefile = makefile, invalidateNotTargets = invalidateNotTargets, preFilterOut = preFilterOut)
+    tree = MakeTree(makefile = makefile, invalidateNotTargets = invalidateNotTargets, preFilterOut = preFilterOut, runMake = runMake)
     filteredTree = tree.filterNodes(seedsIn, seedsOut)
     filteredTree.graphVizExport(outputFile)
 
