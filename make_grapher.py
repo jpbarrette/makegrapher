@@ -300,13 +300,15 @@ class MakeTree:
 
 	    for dep in deps:
 		if nodes.has_key(dep):
-		    if dep not in nodes[path[0]]:
                         if allInBetween:
                             for i in range(len(path)):
                                 if i < (len(path) - 1):
-                                    nodes.setdefault(path[i], []).append(path[i + 1])
+				    nodes.setdefault(path[i], [])
+				    if path[i + 1] not in nodes[path[i]]:
+					nodes[path[i]].append(path[i + 1])
                         else:
-                            nodes.setdefault(path[0], []).append(dep)
+			    if dep not in nodes[path[0]]:
+				nodes[path[0]].append(dep)
                         
 
 		else:
