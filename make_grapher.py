@@ -130,6 +130,7 @@ class MakeTree:
 
 
     def filterMakefileJunk(self, output):
+        print "Filtering Makefile's junk lines..."
 	reservedComments = ["# automatic\n", "# environment\n", "# default\n", "# makefile"]
 
 	define = re.compile("^define ")
@@ -138,6 +139,10 @@ class MakeTree:
 	notAppend = re.compile('^\S+.*:=')
 	p = re.compile('^\S+.*:[^=]')
 	notVariableAssign = re.compile(' = ')
+
+        inData = False
+        dataStart = re.compile("^# Make data base")
+        dataEnd = re.compile("^# Finished Make data base")
 
 	preFilterOut = []
 	for filter in self.preFilterOut:
@@ -152,6 +157,15 @@ class MakeTree:
 	    if skipNext:
 		skipNext = False
 		continue
+
+            if not inData and dataStart.search(line):
+                inData = True
+
+            if inData and dataEnd.search(line):
+                inData = False
+
+            if not inData:
+                continue
 
 	    if line in reservedComments:
 		skipNext = True
@@ -190,6 +204,7 @@ class MakeTree:
     def getMakefile(self, filename, runMake):
         if runMake:
 	    command = "make -npr -f %s" % (filename)
+            print "Running: " + command
 	    ret = getCommandOutput(command, distinct = True)
 	    if ret[0] != 0:
 	        raise RuntimeError, ret[2]
@@ -198,10 +213,6 @@ class MakeTree:
         else:
             lines = open(filename).readlines()
 	
-	for i in range(len(lines)):
-	    if lines[i] == "# Implicit Rules\n":
-		lines = lines[i + 1:]
-		break
 	return self.filterMakefileJunk(lines)
 
 
@@ -220,6 +231,7 @@ class MakeTree:
 	return dependency
 
     def genMap(self, lines):
+        print "Initializing graph..."
 	self.nodes = {}
 
 	i = -1
@@ -245,7 +257,7 @@ class MakeTree:
 	self.matchTargets()
 
     def matchTargets(self):
-        print "Matching targets.."
+        print "Matching targets..."
         rePatternedTargets = {}
         for pattern in self.patternedTargets.keys():
             rePatternedTargets[pattern] = re.compile(pattern)
@@ -258,14 +270,13 @@ class MakeTree:
 		    for dependency in self.patternedTargets[pattern]:
 			dep = self.normalize(dependency, res.group(1))
 			if dep not in self.nodes[target]:
-                            if dep == "example06.cpp":
-                                pdb.set_trace()
 			    self.nodes[target].append(dep)
     
     
 		    
 
     def filterNodes(self, seedsIn, seedsOut = None, allInBetween = False):
+        print "Filtering nodes..."
 	targetsMap = copy.copy(self.nodes)
 
 	reIn = []
@@ -300,7 +311,6 @@ class MakeTree:
 	    for dep in deps:
                 newpath = path + [dep]
 		if nodes.has_key(dep):
-                    print "Matching path: " + str(newpath)
                     if allInBetween:
                         for i in range(len(newpath)):
                             nodes.setdefault(newpath[i], [])
