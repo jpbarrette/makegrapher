@@ -1,3 +1,4 @@
+import copy
 import fcntl
 import getopt
 import os
@@ -148,7 +149,7 @@ class MakeTree:
 	gotADefine = False
 	skipNext = False
 	for line in output:
-	    print "Processing line: " + line
+	    print "Processing line: " + line,
 	    if skipNext:
 		skipNext = False
 		continue
@@ -266,7 +267,7 @@ class MakeTree:
 		    
 
     def filterNodes(self, seedsIn, seedsOut = None):
-	targetsMap = self.nodes
+	targetsMap = copy.copy(self.nodes)
 
 	reIn = []
 	for seedIn in seedsIn:
@@ -284,12 +285,16 @@ class MakeTree:
 	paths = map(lambda t: [t], nodes.keys())
 	while len(paths) != 0:
 	    path = paths.pop()
+            print "Processing: " + str(path)
 	    lastNode = path[-1]
 	    if not targetsMap.has_key(lastNode):
 		continue
 
 
 	    deps = targetsMap[lastNode]
+            # We empty it, just to be sure not
+            # to process it again.
+            targetsMap[lastNode] = []
 
 	    if len(deps) == 0:
 		continue
