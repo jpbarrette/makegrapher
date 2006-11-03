@@ -245,6 +245,7 @@ class MakeTree:
 	self.matchTargets()
 
     def matchTargets(self):
+        print "Matching targets.."
         rePatternedTargets = {}
         for pattern in self.patternedTargets.keys():
             rePatternedTargets[pattern] = re.compile(pattern)
@@ -254,7 +255,6 @@ class MakeTree:
 		reTarget = rePatternedTargets[pattern]
 		res = reTarget.search(target)
 		if res is not None:
-		    print "Found a target: " + str(target) + ", for pattern: " + str(pattern)
 		    for dependency in self.patternedTargets[pattern]:
 			dep = self.normalize(dependency, res.group(1))
 			if dep not in self.nodes[target]:
@@ -284,7 +284,6 @@ class MakeTree:
 	paths = map(lambda t: [t], nodes.keys())
 	while len(paths) != 0:
 	    path = paths.pop()
-            print "Processing: " + str(path)
 	    lastNode = path[-1]
 	    if not targetsMap.has_key(lastNode):
 		continue
@@ -299,20 +298,22 @@ class MakeTree:
 		continue
 
 	    for dep in deps:
+                newpath = path + [dep]
 		if nodes.has_key(dep):
-                        if allInBetween:
-                            for i in range(len(path)):
-                                if i < (len(path) - 1):
-				    nodes.setdefault(path[i], [])
-				    if path[i + 1] not in nodes[path[i]]:
-					nodes[path[i]].append(path[i + 1])
-                        else:
-			    if dep not in nodes[path[0]]:
-				nodes[path[0]].append(dep)
-                        
+                    print "Matching path: " + str(newpath)
+                    if allInBetween:
+                        for i in range(len(newpath)):
+                            nodes.setdefault(newpath[i], [])
+                            if i < (len(newpath) - 1):
+                                if newpath[i + 1] not in nodes[newpath[i]]:
+                                    nodes[newpath[i]].append(newpath[i + 1])
+                    else:
+                        if dep not in nodes[path[0]]:
+                            nodes[path[0]].append(dep)
+
 
 		else:
-		    paths.append(path + [dep])
+		    paths.append(newpath)
 	return MakeTree(nodes = nodes)
 
 
