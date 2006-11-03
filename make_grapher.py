@@ -245,9 +245,13 @@ class MakeTree:
 	self.matchTargets()
 
     def matchTargets(self):
+        rePatternedTargets = {}
+        for pattern in self.patternedTargets.keys():
+            rePatternedTargets[pattern] = re.compile(pattern)
+		
 	for target in self.nodes.keys():
 	    for pattern in self.patternedTargets.keys():
-		reTarget = re.compile(pattern)
+		reTarget = rePatternedTargets[pattern]
 		res = reTarget.search(target)
 		if res is not None:
 		    print "Found a target: " + str(target) + ", for pattern: " + str(pattern)
