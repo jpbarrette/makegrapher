@@ -149,7 +149,6 @@ class MakeTree:
 	gotADefine = False
 	skipNext = False
 	for line in output:
-	    print "Processing line: " + line,
 	    if skipNext:
 		skipNext = False
 		continue
@@ -266,7 +265,7 @@ class MakeTree:
     
 		    
 
-    def filterNodes(self, seedsIn, seedsOut = None):
+    def filterNodes(self, seedsIn, seedsOut = None, allInBetween = False):
 	targetsMap = copy.copy(self.nodes)
 
 	reIn = []
@@ -302,7 +301,13 @@ class MakeTree:
 	    for dep in deps:
 		if nodes.has_key(dep):
 		    if dep not in nodes[path[0]]:
-			nodes[path[0]].append(dep)
+                        if allInBetween:
+                            for i in range(len(path)):
+                                if i < (len(path) - 1):
+                                    nodes.setdefault(path[i], []).append(path[i + 1])
+                        else:
+                            nodes.setdefault(path[0], []).append(dep)
+                        
 
 		else:
 		    paths.append(path + [dep])
@@ -314,7 +319,7 @@ if __name__ == "__main__":
 
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "F:to:fT:s:S:", [])
+        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:", [])
     except getopt.GetoptError:
         # print help information and exit:
         usage()
@@ -327,6 +332,7 @@ if __name__ == "__main__":
     preFilterOut = []
     makefile = None
     runMake = True
+    allInBetween = False
     
     for o, a in opts:
         if o == "-o":
@@ -342,8 +348,10 @@ if __name__ == "__main__":
             seedsIn.append(a)
         if o == "-S":
             seedsOut.append(a)
-	if 0 == "-t":
+	if o == "-t":
 	    invalidateNotTargets = True
+        if o == "-a":
+            allInBetween = True
 
     if makefile is None and not os.path.exists("Makefile"):
         print "You didn't specified any Makefile, and there's no Makefile in the current directory"
@@ -351,7 +359,7 @@ if __name__ == "__main__":
 
 
     tree = MakeTree(makefile = makefile, invalidateNotTargets = invalidateNotTargets, preFilterOut = preFilterOut, runMake = runMake)
-    filteredTree = tree.filterNodes(seedsIn, seedsOut)
+    filteredTree = tree.filterNodes(seedsIn, seedsOut, allInBetween = allInBetween)
     filteredTree.graphVizExport(outputFile)
 
     
