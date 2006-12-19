@@ -332,13 +332,14 @@ if __name__ == "__main__":
 
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:", [])
+        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:", ["seed-in="])
     except getopt.GetoptError:
         # print help information and exit:
         usage()
         sys.exit(2)
 
     seedsIn = []
+    seedInFiles = []
     seedsOut = []
     outputFile = "output.dot"
     invalidateNotTargets = False
@@ -359,6 +360,8 @@ if __name__ == "__main__":
             runMake = False
         if o == "-s":
             seedsIn.append(a)
+        if o == "--seed-in":
+            seedInFiles.append(a)
         if o == "-S":
             seedsOut.append(a)
 	if o == "-t":
@@ -370,6 +373,10 @@ if __name__ == "__main__":
         print "You didn't specified any Makefile, and there's no Makefile in the current directory"
         sys.exit(2)
 
+    for seedInFile in seedInFiles:
+        print "Seeding targets from %s context " % (seedInFile) 
+        for line in open(seedInFile).readlines():
+            seedsIn.append(line.strip(" \n"))
 
     tree = MakeTree(makefile = makefile, invalidateNotTargets = invalidateNotTargets, preFilterOut = preFilterOut, runMake = runMake)
     filteredTree = tree.filterNodes(seedsIn, seedsOut, allInBetween = allInBetween)
