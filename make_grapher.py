@@ -95,7 +95,7 @@ class MakeTree:
 
 
 
-    def graphVizExport(self, filename, size = (8,11)):
+    def graphVizExport(self, filename, size = (8,10)):
 	"""
 	This function will export a graphviz file
 	"""
@@ -104,7 +104,9 @@ class MakeTree:
 	f = open(filename, 'w')
 	f.write("digraph G {\nrankdir=LR;")
 	f.write("size = \"" + str(size[0]) + "," + str(size[1]) + "\";")
+	#f.write("page = \"8.5,11\";")
 	f.write("ratio = auto;")
+	#f.write("rotate = 90;")
 
 	f.write("node [shape = plaintext];\n")
 
@@ -295,14 +297,19 @@ class MakeTree:
 	paths = map(lambda t: [t], nodes.keys())
 	while len(paths) != 0:
 	    path = paths.pop()
+
 	    lastNode = path[-1]
 	    if not targetsMap.has_key(lastNode):
 		continue
 
 
 	    deps = targetsMap[lastNode]
-            # We empty it, just to be sure not
-            # to process it again.
+            # We empty it, just to be sure not to process it again.
+            # We will fill in the valid target that we are able to
+            # reach from this node.
+            #
+            # It this is already a good node, it will stay empty.
+            # 
             targetsMap[lastNode] = []
 
 	    if len(deps) == 0:
@@ -311,17 +318,10 @@ class MakeTree:
 	    for dep in deps:
                 newpath = path + [dep]
 		if nodes.has_key(dep):
-                    if allInBetween:
-                        for i in range(len(newpath)):
-                            nodes.setdefault(newpath[i], [])
-                            if i < (len(newpath) - 1):
-                                if newpath[i + 1] not in nodes[newpath[i]]:
-                                    nodes[newpath[i]].append(newpath[i + 1])
-                    else:
-                        if dep not in nodes[path[0]]:
-                            nodes[path[0]].append(dep)
-
-
+                    for node in path[1:-1]:
+                        targetsMap[node].append(dep)
+                    if dep not in nodes[path[0]]:
+                        nodes[path[0]].append(dep)
 		else:
 		    paths.append(newpath)
 	return MakeTree(nodes = nodes)
@@ -383,3 +383,14 @@ if __name__ == "__main__":
     filteredTree.graphVizExport(outputFile)
 
     
+
+#                     if allInBetween:
+#                         for i in range(len(newpath)):
+#                             nodes.setdefault(newpath[i], [])
+#                             if i < (len(newpath) - 1):
+#                                 if newpath[i + 1] not in nodes[newpath[i]]:
+#                                     nodes[newpath[i]].append(newpath[i + 1])
+#                     else:
+#                         if dep not in nodes[path[0]]:
+#                             nodes[path[0]].append(dep)
+
