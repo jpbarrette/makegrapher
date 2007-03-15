@@ -95,10 +95,11 @@ class MakeTree:
 
 
 
-    def graphVizExport(self, filename, size = (8,10)):
+    def graphVizExport(self, filename, size = (8,10), sortDotEntries = False):
 	"""
 	This function will export a graphviz file
 	"""
+        print "Exporting to GraphViz format..."
 	nodes = self.nodes
 
 	f = open(filename, 'w')
@@ -110,12 +111,19 @@ class MakeTree:
 
 	f.write("node [shape = plaintext];\n")
 
-	for target in nodes.keys():
+        targets = nodes.keys()
+        if sortDotEntries:
+            targets.sort()
+
+	for target in targets:
 	    f.write("\"" + target + "\" \n")
 	f.write(";\n")
 
-	for target in nodes.keys():
-	    for dep in nodes[target]:
+	for target in targets:
+            deps = nodes[target]
+            if sortDotEntries:
+                deps.sort()
+	    for dep in deps:
 		f.write("\"" + target +
 			"\" -> \"" +
 			dep +
@@ -332,7 +340,7 @@ if __name__ == "__main__":
 
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:", ["seed-in="])
+        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:", ["seed-in=","sort-dot-entries"])
     except getopt.GetoptError:
         # print help information and exit:
         usage()
@@ -347,6 +355,7 @@ if __name__ == "__main__":
     makefile = None
     runMake = True
     allInBetween = False
+    sortDotEntries = False
     
     for o, a in opts:
         if o == "-o":
@@ -368,6 +377,8 @@ if __name__ == "__main__":
 	    invalidateNotTargets = True
         if o == "-a":
             allInBetween = True
+        if o == "--sort-dot-entries":
+            sortDotEntries = True
 
     if makefile is None and not os.path.exists("Makefile"):
         print "You didn't specified any Makefile, and there's no Makefile in the current directory"
@@ -380,7 +391,7 @@ if __name__ == "__main__":
 
     tree = MakeTree(makefile = makefile, invalidateNotTargets = invalidateNotTargets, preFilterOut = preFilterOut, runMake = runMake)
     filteredTree = tree.filterNodes(seedsIn, seedsOut, allInBetween = allInBetween)
-    filteredTree.graphVizExport(outputFile)
+    filteredTree.graphVizExport(outputFile, sortDotEntries = sortDotEntries)
 
     
 
