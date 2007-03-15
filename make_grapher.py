@@ -335,12 +335,38 @@ class MakeTree:
 	return MakeTree(nodes = nodes)
 
 
+    def filterExtraDeps(self):
+        print "Filtering extra deps..."
+	nodes = copy.copy(self.nodes)
+
+	paths = map(lambda t: [t], nodes.keys())
+	while len(paths) != 0:
+	    path = paths.pop()
+
+	    lastNode = path[-1]
+            if len(path) > 2 and lastNode in nodes[path[0]]:
+                nodes[path[0]].remove(lastNode)
+                
+	    deps = nodes[lastNode]
+	    if len(deps) == 0:
+		continue
+
+	    for dep in deps:
+                newpath = path + [dep]
+                paths.append(newpath)
+                
+	return MakeTree(nodes = nodes)
+
+
 
 if __name__ == "__main__":
 
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:", ["seed-in=","sort-dot-entries"])
+        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:",
+                                   ["seed-in=",
+                                    "sort-dot-entries",
+                                    "remove-extra-deps"])
     except getopt.GetoptError:
         # print help information and exit:
         usage()
@@ -356,6 +382,7 @@ if __name__ == "__main__":
     runMake = True
     allInBetween = False
     sortDotEntries = False
+    removeExtraDeps = False
     
     for o, a in opts:
         if o == "-o":
@@ -379,6 +406,9 @@ if __name__ == "__main__":
             allInBetween = True
         if o == "--sort-dot-entries":
             sortDotEntries = True
+        if o == "--remove-extra-deps":
+            removeExtraDeps = True
+        
 
     if makefile is None and not os.path.exists("Makefile"):
         print "You didn't specified any Makefile, and there's no Makefile in the current directory"
@@ -391,6 +421,8 @@ if __name__ == "__main__":
 
     tree = MakeTree(makefile = makefile, invalidateNotTargets = invalidateNotTargets, preFilterOut = preFilterOut, runMake = runMake)
     filteredTree = tree.filterNodes(seedsIn, seedsOut, allInBetween = allInBetween)
+    if removeExtraDeps:
+        filteredTree = filteredTree.filterExtraDeps()
     filteredTree.graphVizExport(outputFile, sortDotEntries = sortDotEntries)
 
     
