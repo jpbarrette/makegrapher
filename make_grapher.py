@@ -342,23 +342,21 @@ class MakeTree:
             # 
             targetsMap[lastNode] = []
 
-            if showRebuildingTargets is True:
-                targetExists = os.path.exists(lastNode);
-                if not dates.has_key(lastNode) and targetExists:
-                    dates[lastNode] = os.path.getmtime(lastNode)
+            targetExists = os.path.exists(lastNode);
+            if not dates.has_key(lastNode) and targetExists:
+                dates[lastNode] = os.path.getmtime(lastNode)
 
 	    if len(deps) == 0:
 		continue
 
 	    for dep in deps:
-                if showRebuildingTargets is True:
-                    depExists = os.path.exists(dep)
-                    if not dates.has_key(dep) and depExists:
-                        dates[dep] = os.path.getmtime(dep)
-                    if targetExists and depExists and dates[lastNode] < dates[dep]:
-                        rebuildingNodes.append(dep)
-                        if not nodes.has_key(dep):
-                            nodes[dep] = []
+                depExists = os.path.exists(dep)
+                if not dates.has_key(dep) and depExists:
+                    dates[dep] = os.path.getmtime(dep)
+                if targetExists and depExists and dates[lastNode] < dates[dep]:
+                    rebuildingNodes.append(dep)
+                    if showRebuildingTargets and not nodes.has_key(dep):
+                        nodes[dep] = []
                 newpath = path + [dep]
 		if nodes.has_key(dep):
                     for node in path[1:-1]:
@@ -398,11 +396,12 @@ if __name__ == "__main__":
 
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:RB",
+        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:RBp",
                                    ["seed-in=",
                                     "sort-dot-entries",
                                     "remove-extra-deps",
-                                    "show-rebuilding-targets"])
+                                    "show-rebuilding-targets",
+                                    "print-rebuilding-targets"])
     except getopt.GetoptError:
         # print help information and exit:
         usage()
@@ -411,7 +410,7 @@ if __name__ == "__main__":
     seedsIn = []
     seedInFiles = []
     seedsOut = []
-    outputFile = "output.dot"
+    outputFile = None
     invalidateNotTargets = False
     preFilterOut = []
     makefile = None
@@ -420,6 +419,7 @@ if __name__ == "__main__":
     sortDotEntries = False
     removeExtraDeps = False
     showRebuildingTargets = False
+    printRebuildingTargets = False
     
     for o, a in opts:
         if o == "-o":
@@ -447,6 +447,8 @@ if __name__ == "__main__":
             removeExtraDeps = True
         if o in ("-B", "--show-rebuilding-targets"):
             showRebuildingTargets = True
+        if o in ("-p", "--print-rebuilding-targets"):
+            printRebuildingTargets = True
         
 
     if makefile is None and not os.path.exists("Makefile"):
@@ -462,7 +464,11 @@ if __name__ == "__main__":
     filteredTree = tree.filterNodes(seedsIn, seedsOut, allInBetween = allInBetween, showRebuildingTargets = showRebuildingTargets)
     if removeExtraDeps:
         filteredTree = filteredTree.filterExtraDeps()
-    filteredTree.graphVizExport(outputFile, sortDotEntries = sortDotEntries)
+    if outputFile is not None:
+        filteredTree.graphVizExport(outputFile, sortDotEntries = sortDotEntries)
+    if printRebuildingTargets:
+        for target in filteredTree.rebuildingNodes:
+            print target
 
     
 
