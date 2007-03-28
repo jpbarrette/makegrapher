@@ -73,7 +73,13 @@ class MakeTree:
 		 makefile = None, 
 		 invalidateNotTargets = False,
 		 preFilterOut = None,
-                 runMake = True):
+                 runMake = True,
+                 rebuildingNodes = None):
+        
+        if rebuildingNodes is None:
+            rebuildingNodes = []
+        self.rebuildingNodes = rebuildingNodes
+        
 	if preFilterOut is None:
 	    preFilterOut = []
 	self.preFilterOut = preFilterOut
@@ -116,8 +122,21 @@ class MakeTree:
             targets.sort()
 
 	for target in targets:
-	    f.write("\"" + target + "\" \n")
+            if target not in self.rebuildingNodes:
+                f.write("\"" + target + "\" \n")
 	f.write(";\n")
+
+
+        # rebuilding targets
+        if len(self.rebuildingNodes) > 0:
+            f.write("node [shape = plaintext, color = red];\n")
+            rebuildingTargets = self.rebuildingNodes
+            if sortDotEntries:
+                rebuildingTargets.sort()
+            for target in rebuildingTargets:
+                f.write("\"" + target + "\" [fontcolor=red] \n")
+                f.write(";\n")
+        
 
 	for target in targets:
             deps = nodes[target]
@@ -285,7 +304,7 @@ class MakeTree:
     
 		    
 
-    def filterNodes(self, seedsIn, seedsOut = None, allInBetween = False):
+    def filterNodes(self, seedsIn, seedsOut = None, allInBetween = False, showRebuildingTargets = False):
         print "Filtering nodes..."
 	targetsMap = copy.copy(self.nodes)
 
@@ -302,7 +321,10 @@ class MakeTree:
 	    if (len(reIn) ==0 or some(lambda r: r.search(target), reIn)) and not some(lambda r: r.search(target), reOut):
 		nodes[target] = []
 
+        dates = {}
+
 	paths = map(lambda t: [t], nodes.keys())
+        rebuildingNodes = []
 	while len(paths) != 0:
 	    path = paths.pop()
 
@@ -320,10 +342,21 @@ class MakeTree:
             # 
             targetsMap[lastNode] = []
 
+            targetExists = os.path.exists(lastNode);
+            if not dates.has_key(lastNode) and targetExists:
+                dates[lastNode] = os.path.getmtime(lastNode)
+
 	    if len(deps) == 0:
 		continue
 
 	    for dep in deps:
+                depExists = os.path.exists(dep)
+                if not dates.has_key(dep) and depExists:
+                    dates[dep] = os.path.getmtime(dep)
+                if targetExists and depExists and dates[lastNode] < dates[dep]:
+                    rebuildingNodes.append(dep)
+                    if not nodes.has_key(dep):
+                        nodes[dep] = []
                 newpath = path + [dep]
 		if nodes.has_key(dep):
                     for node in path[1:-1]:
@@ -332,7 +365,7 @@ class MakeTree:
                         nodes[path[0]].append(dep)
 		else:
 		    paths.append(newpath)
-	return MakeTree(nodes = nodes)
+	return MakeTree(nodes = nodes, rebuildingNodes = rebuildingNodes)
 
 
     def filterExtraDeps(self):
@@ -363,10 +396,11 @@ if __name__ == "__main__":
 
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:",
+        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:RB",
                                    ["seed-in=",
                                     "sort-dot-entries",
-                                    "remove-extra-deps"])
+                                    "remove-extra-deps",
+                                    "show-rebuilding-targets"])
     except getopt.GetoptError:
         # print help information and exit:
         usage()
@@ -383,6 +417,7 @@ if __name__ == "__main__":
     allInBetween = False
     sortDotEntries = False
     removeExtraDeps = False
+    showRebuildingTargets = False
     
     for o, a in opts:
         if o == "-o":
@@ -406,8 +441,10 @@ if __name__ == "__main__":
             allInBetween = True
         if o == "--sort-dot-entries":
             sortDotEntries = True
-        if o == "--remove-extra-deps":
+        if o in ("-R", "--remove-extra-deps"):
             removeExtraDeps = True
+        if o in ("-B", "--show-rebuilding-targets"):
+            showRebuildingTargets = True
         
 
     if makefile is None and not os.path.exists("Makefile"):
@@ -420,7 +457,7 @@ if __name__ == "__main__":
             seedsIn.append(line.strip(" \n"))
 
     tree = MakeTree(makefile = makefile, invalidateNotTargets = invalidateNotTargets, preFilterOut = preFilterOut, runMake = runMake)
-    filteredTree = tree.filterNodes(seedsIn, seedsOut, allInBetween = allInBetween)
+    filteredTree = tree.filterNodes(seedsIn, seedsOut, allInBetween = allInBetween, showRebuildingTargets = showRebuildingTargets)
     if removeExtraDeps:
         filteredTree = filteredTree.filterExtraDeps()
     filteredTree.graphVizExport(outputFile, sortDotEntries = sortDotEntries)
