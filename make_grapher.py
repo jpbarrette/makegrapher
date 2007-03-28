@@ -342,21 +342,23 @@ class MakeTree:
             # 
             targetsMap[lastNode] = []
 
-            targetExists = os.path.exists(lastNode);
-            if not dates.has_key(lastNode) and targetExists:
-                dates[lastNode] = os.path.getmtime(lastNode)
+            if showRebuildingTargets is True:
+                targetExists = os.path.exists(lastNode);
+                if not dates.has_key(lastNode) and targetExists:
+                    dates[lastNode] = os.path.getmtime(lastNode)
 
 	    if len(deps) == 0:
 		continue
 
 	    for dep in deps:
-                depExists = os.path.exists(dep)
-                if not dates.has_key(dep) and depExists:
-                    dates[dep] = os.path.getmtime(dep)
-                if targetExists and depExists and dates[lastNode] < dates[dep]:
-                    rebuildingNodes.append(dep)
-                    if not nodes.has_key(dep):
-                        nodes[dep] = []
+                if showRebuildingTargets is True:
+                    depExists = os.path.exists(dep)
+                    if not dates.has_key(dep) and depExists:
+                        dates[dep] = os.path.getmtime(dep)
+                    if targetExists and depExists and dates[lastNode] < dates[dep]:
+                        rebuildingNodes.append(dep)
+                        if not nodes.has_key(dep):
+                            nodes[dep] = []
                 newpath = path + [dep]
 		if nodes.has_key(dep):
                     for node in path[1:-1]:
