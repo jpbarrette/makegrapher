@@ -353,7 +353,9 @@ class MakeTree:
                 depExists = os.path.exists(dep)
                 if not dates.has_key(dep) and depExists:
                     dates[dep] = os.path.getmtime(dep)
-                if targetExists and depExists and dates[lastNode] < dates[dep]:
+                if targetExists and \
+                   ((depExists and dates[lastNode] < dates[dep]) \
+                    or (not depExists)):
                     rebuildingNodes.append(dep)
                     if showRebuildingTargets and not nodes.has_key(dep):
                         nodes[dep] = []
