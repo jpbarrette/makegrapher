@@ -232,58 +232,59 @@ class MakeTree:
 
     def getMakefile(self, filename, runMake):
         if runMake:
-	    command = "make -npr -f %s" % (filename)
+            command = "make -npr -f %s" % (filename)
             print "Running: " + command
-	    ret = getCommandOutput(command, distinct = True)
-	    if ret[0] != 0:
-	        raise RuntimeError, ret[2]
+            ret = getCommandOutput(command, distinct = True)
+            if ret[0] != 0:
+                raise RuntimeError, ret[2]
             io = StringIO.StringIO(ret[1])
             lines = io.readlines()
         else:
             lines = open(filename).readlines()
 	
-	return self.filterMakefileJunk(lines)
+        return self.filterMakefileJunk(lines)
 
 
     def isPatternedTargets(self, target):
-	res = self.rTransform.search(target)
-	return res is not None
+        res = self.rTransform.search(target)
+        return res is not None
 
     def transformPT(self, target):
-	res = self.rTransform.search(target)
-	return "^" + re.escape(target[:res.start(2)]) + "(.*)" + re.escape(target[res.end(2):]) + "$"
+        res = self.rTransform.search(target)
+        return "^" + re.escape(target[:res.start(2)]) + "(.*)" + re.escape(target[res.end(2):]) + "$"
 
     def normalize(self, dependency, lemma):
-	res = self.rTransform.search(dependency)
-	if res is not None:
-	    return dependency[:res.start(2)] + lemma + dependency[res.end(2):]
-	return dependency
+        res = self.rTransform.search(dependency)
+        if res is not None:
+            return dependency[:res.start(2)] + lemma + dependency[res.end(2):]
+        return dependency
 
     def genMap(self, lines):
         print "Initializing graph..."
-	self.nodes = {}
-
-	i = -1
-	for line in lines:
-	    i += 1
-	    parts = line.split(":")
-	    if(len(parts) != 2):
-		print "Line is not valid"
-		print line
-	    targets = filter(lambda s: len(s), parts[0].split(" "))
-	    for target in targets:
-		if self.isPatternedTargets(target):
-		    tMap = self.patternedTargets
-		    target = self.transformPT(target)
-		else:
-		    tMap = self.nodes
-		if not tMap.has_key(target):
-		    tMap[target] = []
-		dependencies = parts[1].strip().split(" ")
-		for dependency in dependencies:
-		    if dependency not in tMap[target] and dependency != "":
-			tMap[target].append(dependency.strip())
-	self.matchTargets()
+        self.nodes = {}
+        
+        i = -1
+        for line in lines:
+            i += 1
+            parts = line.split(":")
+            if(len(parts) != 2):
+                print "Line is not valid"
+                print line
+            targets = filter(lambda s: len(s), parts[0].split(" "))
+            for target in targets:
+                if self.isPatternedTargets(target):
+                    tMap = self.patternedTargets
+                    target = self.transformPT(target)
+                else:
+                    tMap = self.nodes
+                if not tMap.has_key(target):
+                    tMap[target] = []
+                dependencies = parts[1].strip().split(" ")
+                for dependency in dependencies:
+                    if dependency not in tMap[target] and dependency != "":
+                        tMap[target].append(dependency.strip())
+        self.matchTargets()
+        
 
     def matchTargets(self):
         print "Matching targets..."
