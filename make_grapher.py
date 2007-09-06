@@ -13,7 +13,7 @@ import StringIO
 
 from functionnal_utils import *
 
-
+verbose = False
 
 def getCommandOutput(command, verbose = False, distinct = False):
     def makeNonBlocking(fd):
@@ -160,32 +160,32 @@ class MakeTree:
 
     def filterMakefileJunk(self, output):
         print "Filtering Makefile's junk lines..."
-	reservedComments = ["# automatic\n", "# environment\n", "# default\n", "# makefile"]
+        reservedComments = ["# automatic\n", "# environment\n", "# default\n", "# makefile"]
 
-	define = re.compile("^define ")
-	notTarget = re.compile("^# Not a target:$")
-	start = re.compile("^# Files$")
-	notAppend = re.compile('^\S+.*:=')
-	p = re.compile('^\S+.*:[^=]')
-	notVariableAssign = re.compile(' = ')
-
+        define = re.compile("^define ")
+        notTarget = re.compile("^# Not a target:$")
+        start = re.compile("^# Files$")
+        notAppend = re.compile('^\S+.*:=')
+        p = re.compile('^\S+.*:[^=]')
+        notVariableAssign = re.compile(' = ')
+        
         inData = False
         dataStart = re.compile("^# Make data base")
         dataEnd = re.compile("^# Finished Make data base")
 
-	preFilterOut = []
-	for filter in self.preFilterOut:
-	    preFilterOut.append(re.compile(filter))
+        preFilterOut = []
+        for filter in self.preFilterOut:
+            preFilterOut.append(re.compile(filter))
 
-	lines = []
+        lines = []
 
-	previousLine = ""
-	gotADefine = False
-	skipNext = False
-	for line in output:
-	    if skipNext:
-		skipNext = False
-		continue
+        previousLine = ""
+        gotADefine = False
+        skipNext = False
+        for line in output:
+            if skipNext:
+                skipNext = False
+                continue
 
             if not inData and dataStart.search(line):
                 inData = True
@@ -196,38 +196,38 @@ class MakeTree:
             if not inData:
                 continue
 
-	    if line in reservedComments:
-		skipNext = True
+            if line in reservedComments:
+                skipNext = True
 
 
-	    if define.search(line):
-		gotADefine = True
-	    if line == "endef\n":
-		gotADefine = False
-	    if gotADefine:
-		continue
+            if define.search(line):
+                gotADefine = True
+            if line == "endef\n":
+                gotADefine = False
+            if gotADefine:
+                continue
 
-	    res = self.phonyRE.search(line)
-	    if res is not None:
-		self.registerPhony(line[res.end():])
-		continue
+            res = self.phonyRE.search(line)
+            if res is not None:
+                self.registerPhony(line[res.end():])
+                continue
 
-	    if line[0] == "\t":
-		continue
+            if line[0] == "\t":
+                continue
 
-	    if line[0] == "#":
-		continue
+            if line[0] == "#":
+                continue
 
-	    if some(lambda s: s.search(line), preFilterOut):
-	    	continue
+            if some(lambda s: s.search(line), preFilterOut):
+                continue
 
-	    result = p.search(line)
-	    if result is not None and \
-		    notVariableAssign.search(line) is None and \
-		    notAppend.search(line) is None:
-	        #notTarget.search(previousLine) is None:
-		lines.append(line)
-	return lines
+            result = p.search(line)
+            if result is not None and \
+                   notVariableAssign.search(line) is None and \
+                   notAppend.search(line) is None:
+                #notTarget.search(previousLine) is None:
+                lines.append(line)
+        return lines
 
 
     def getMakefile(self, filename, runMake):
@@ -393,6 +393,31 @@ class MakeTree:
 	return MakeTree(nodes = nodes)
 
 
+def usage():
+    print """
+MakeGrapher
+
+This program is used to generate a DOT file that represent the dependencies
+between makefile's targets. It uses as input a makefile database.
+
+The typical usage is (for viewing the LPEs dependencies within a loadbuild):
+
+  IDILIA_LOADBUILD=yes make T=1 -npr > Makefile.complete
+  python ~jpbarrette/Projects/MakeGrapher/make_grapher.py -T Makefile.complete -s "../tmp/build" -o test.dot
+  dot -Tps test.dot > test.ps; ps2pdf test.ps; acroread test.pdf
+
+acroread is WAY faster than kghostview. Since the graph might be quite big,
+it would make a real difference.
+
+-a, --all-in-between            This will enable the insertion of intermediate
+                                targets between chosen targets.
+-o, --output-file=FILE          the output file name (the dot file).
+-v, --verbose                   toggle verbose output
+-T, --database                  makefile output that is used as the database
+
+"""
+
+
 
 if __name__ == "__main__":
 
@@ -439,8 +464,10 @@ if __name__ == "__main__":
             seedInFiles.append(a)
         if o == "-S":
             seedsOut.append(a)
-	if o == "-t":
-	    invalidateNotTargets = True
+        if o == "-v":
+            verbose = True
+        if o == "-t":
+            invalidateNotTargets = True
         if o == "-a":
             allInBetween = True
         if o == "--sort-dot-entries":
