@@ -334,7 +334,7 @@ class MakeTree:
                 continue
 
 
-	    deps = targetsMap[lastNode]
+            deps = targetsMap[lastNode]
             # We empty it, just to be sure not to process it again.
             # We will fill in the valid target that we are able to
             # reach from this node.
@@ -342,56 +342,56 @@ class MakeTree:
             # It this is already a good node, it will stay empty.
             # 
             targetsMap[lastNode] = []
-
+            
             targetExists = os.path.exists(lastNode);
             if not dates.has_key(lastNode) and targetExists:
                 dates[lastNode] = os.path.getmtime(lastNode)
 
-	    if len(deps) == 0:
-		continue
+            if len(deps) == 0:
+                continue
 
-	    for dep in deps:
+            for dep in deps:
                 depExists = os.path.exists(dep)
                 if not dates.has_key(dep) and depExists:
                     dates[dep] = os.path.getmtime(dep)
                 if targetExists and \
-                   ((depExists and dates[lastNode] < dates[dep]) \
-                    or (not depExists)):
+                       ((depExists and dates[lastNode] < dates[dep]) \
+                        or (not depExists)):
                     rebuildingNodes.append(dep)
                     if showRebuildingTargets and not nodes.has_key(dep):
                         nodes[dep] = []
                 newpath = path + [dep]
-		if nodes.has_key(dep):
+                if nodes.has_key(dep):
                     for node in path[1:-1]:
                         targetsMap[node].append(dep)
                     if dep not in nodes[path[0]]:
                         nodes[path[0]].append(dep)
-		else:
-		    paths.append(newpath)
-	return MakeTree(nodes = nodes, rebuildingNodes = rebuildingNodes)
+                else:
+                    paths.append(newpath)
+        return MakeTree(nodes = nodes, rebuildingNodes = rebuildingNodes)
 
 
     def filterExtraDeps(self):
         print "Filtering extra deps..."
-	nodes = copy.copy(self.nodes)
+        nodes = copy.copy(self.nodes)
 
-	paths = map(lambda t: [t], nodes.keys())
-	while len(paths) != 0:
-	    path = paths.pop()
+        paths = map(lambda t: [t], nodes.keys())
+        while len(paths) != 0:
+            path = paths.pop()
 
-	    lastNode = path[-1]
+            lastNode = path[-1]
             if len(path) > 2 and lastNode in nodes[path[0]]:
                 nodes[path[0]].remove(lastNode)
-                
-	    deps = nodes[lastNode]
-	    if len(deps) == 0:
-		continue
 
-	    for dep in deps:
+            deps = nodes[lastNode]
+            if len(deps) == 0:
+                continue
+
+            for dep in deps:
                 newpath = path + [dep]
                 paths.append(newpath)
                 
-	return MakeTree(nodes = nodes)
+        return MakeTree(nodes = nodes)
 
 
 def usage():
