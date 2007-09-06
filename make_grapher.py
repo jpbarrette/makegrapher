@@ -292,46 +292,46 @@ class MakeTree:
         for pattern in self.patternedTargets.keys():
             rePatternedTargets[pattern] = re.compile(pattern)
 		
-	for target in self.nodes.keys():
-	    for pattern in self.patternedTargets.keys():
-		reTarget = rePatternedTargets[pattern]
-		res = reTarget.search(target)
-		if res is not None:
-		    for dependency in self.patternedTargets[pattern]:
-			dep = self.normalize(dependency, res.group(1))
-			if dep not in self.nodes[target]:
-			    self.nodes[target].append(dep)
+        for target in self.nodes.keys():
+            for pattern in self.patternedTargets.keys():
+                reTarget = rePatternedTargets[pattern]
+                res = reTarget.search(target)
+                if res is not None:
+                    for dependency in self.patternedTargets[pattern]:
+                        dep = self.normalize(dependency, res.group(1))
+                        if dep not in self.nodes[target]:
+                            self.nodes[target].append(dep)
     
     
 		    
 
     def filterNodes(self, seedsIn, seedsOut = None, allInBetween = False, showRebuildingTargets = False):
         print "Filtering nodes..."
-	targetsMap = copy.copy(self.nodes)
+        targetsMap = copy.copy(self.nodes)
 
-	reIn = []
-	for seedIn in seedsIn:
-	    reIn.append(re.compile(seedIn))
+        reIn = []
+        for seedIn in seedsIn:
+            reIn.append(re.compile(seedIn))
 
-	reOut = []
-	for seedOut in seedsOut:
-	    reOut.append(re.compile(seedOut))
+        reOut = []
+        for seedOut in seedsOut:
+            reOut.append(re.compile(seedOut))
 
-	nodes = {}
-	for target in targetsMap.keys():
-	    if (len(reIn) ==0 or some(lambda r: r.search(target), reIn)) and not some(lambda r: r.search(target), reOut):
-		nodes[target] = []
+        nodes = {}
+        for target in targetsMap.keys():
+            if (len(reIn) ==0 or some(lambda r: r.search(target), reIn)) and not some(lambda r: r.search(target), reOut):
+                nodes[target] = []
 
         dates = {}
 
-	paths = map(lambda t: [t], nodes.keys())
+        paths = map(lambda t: [t], nodes.keys())
         rebuildingNodes = []
-	while len(paths) != 0:
-	    path = paths.pop()
+        while len(paths) != 0:
+            path = paths.pop()
 
-	    lastNode = path[-1]
-	    if not targetsMap.has_key(lastNode):
-		continue
+            lastNode = path[-1]
+            if not targetsMap.has_key(lastNode):
+                continue
 
 
 	    deps = targetsMap[lastNode]
