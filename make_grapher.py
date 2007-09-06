@@ -334,7 +334,7 @@ class MakeTree:
 
         nbNodes = len(paths)
         nbNodesDone = 0
-        currentStartTarget = paths[0][0]
+        currentStartTarget = None
         while len(paths) != 0:
             path = paths.pop()
             if verbose:
@@ -342,8 +342,9 @@ class MakeTree:
                 pp.pprint(path)
 
             if path[0] != currentStartTarget:
+                currentStartTarget = path[0]
                 nbNodesDone += 1
-                print "Node " + str(nbNodesDone) + "/" + nbNodes;
+                print "Processing node " + currentStartTarget + " " + str(nbNodesDone) + "/" + str(nbNodes);
                 
             lastNode = path[-1]
             if not targetsMap.has_key(lastNode):
