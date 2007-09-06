@@ -331,12 +331,20 @@ class MakeTree:
 
         paths = map(lambda t: [t], nodes.keys())
         rebuildingNodes = []
+
+        nbNodes = len(paths)
+        nbNodesDone = 0
+        currentStartTarget = paths[0][0]
         while len(paths) != 0:
             path = paths.pop()
             if verbose:
                 print "Processing path: "
                 pp.pprint(path)
 
+            if path[0] != currentStartTarget:
+                nbNodesDone += 1
+                print "Node " + str(nbNodesDone) + "/" + nbNodes;
+                
             lastNode = path[-1]
             if not targetsMap.has_key(lastNode):
                 continue
@@ -351,7 +359,6 @@ class MakeTree:
             # 
             targetsMap[lastNode] = []
 
-            targetExists = False
             if showRebuildingTargets:
                 targetExists = os.path.exists(lastNode);
                 if not dates.has_key(lastNode) and targetExists:
@@ -365,12 +372,12 @@ class MakeTree:
                     depExists = os.path.exists(dep)
                     if not dates.has_key(dep) and depExists:
                         dates[dep] = os.path.getmtime(dep)
-                if targetExists and \
-                       ((depExists and dates[lastNode] < dates[dep]) \
-                        or (not depExists)):
-                    rebuildingNodes.append(dep)
-                    if showRebuildingTargets and not nodes.has_key(dep):
-                        nodes[dep] = []
+                    if targetExists and \
+                           ((depExists and dates[lastNode] < dates[dep]) \
+                            or (not depExists)):
+                        rebuildingNodes.append(dep)
+                        if not nodes.has_key(dep):
+                            nodes[dep] = []
                 newpath = path + [dep]
                 if nodes.has_key(dep):
                     for node in path[1:-1]:
