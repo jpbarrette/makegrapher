@@ -307,14 +307,19 @@ class MakeTree:
 
     def filterNodes(self, seedsIn, seedsOut = None, allInBetween = False, showRebuildingTargets = False):
         print "Filtering nodes..."
+        pp = pprint.PrettyPrinter(indent=2)
         targetsMap = copy.copy(self.nodes)
 
         reIn = []
         for seedIn in seedsIn:
+            if verbose:
+                print "Compiling seedIn: " + str(seedIn)
             reIn.append(re.compile(seedIn))
 
         reOut = []
         for seedOut in seedsOut:
+            if verbose:
+                print "Compiling seedOut: " + str(seedOut)
             reOut.append(re.compile(seedOut))
 
         nodes = {}
@@ -328,6 +333,9 @@ class MakeTree:
         rebuildingNodes = []
         while len(paths) != 0:
             path = paths.pop()
+            if verbose:
+                print "Processing path: "
+                pp.pprint(path)
 
             lastNode = path[-1]
             if not targetsMap.has_key(lastNode):
@@ -342,18 +350,21 @@ class MakeTree:
             # It this is already a good node, it will stay empty.
             # 
             targetsMap[lastNode] = []
-            
-            targetExists = os.path.exists(lastNode);
-            if not dates.has_key(lastNode) and targetExists:
-                dates[lastNode] = os.path.getmtime(lastNode)
+
+            targetExists = False
+            if showRebuildingTargets:
+                targetExists = os.path.exists(lastNode);
+                if not dates.has_key(lastNode) and targetExists:
+                    dates[lastNode] = os.path.getmtime(lastNode)
 
             if len(deps) == 0:
                 continue
 
             for dep in deps:
-                depExists = os.path.exists(dep)
-                if not dates.has_key(dep) and depExists:
-                    dates[dep] = os.path.getmtime(dep)
+                if showRebuildingTargets:
+                    depExists = os.path.exists(dep)
+                    if not dates.has_key(dep) and depExists:
+                        dates[dep] = os.path.getmtime(dep)
                 if targetExists and \
                        ((depExists and dates[lastNode] < dates[dep]) \
                         or (not depExists)):
@@ -424,12 +435,13 @@ if __name__ == "__main__":
 
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:RBp",
+        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:RBpv",
                                    ["seed-in=",
                                     "sort-dot-entries",
                                     "remove-extra-deps",
                                     "show-rebuilding-targets",
-                                    "print-rebuilding-targets"])
+                                    "print-rebuilding-targets",
+                                    "verbose"])
     except getopt.GetoptError:
         # print help information and exit:
         usage()
@@ -465,7 +477,7 @@ if __name__ == "__main__":
             seedInFiles.append(a)
         if o == "-S":
             seedsOut.append(a)
-        if o == "-v":
+        if o in ("-v", "--verbose"):
             verbose = True
         if o == "-t":
             invalidateNotTargets = True
