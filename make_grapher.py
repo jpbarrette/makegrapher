@@ -452,8 +452,8 @@ if __name__ == "__main__":
     for o, a in opts:
         if o == "-o":
             outputFile = a
-	if o == "-F":
-	    preFilterOut.append(a)
+        if o == "-F":
+            preFilterOut.append(a)
         if o == "-f":
             makefile = a
         if o == "-T":
@@ -484,7 +484,7 @@ if __name__ == "__main__":
     if makefile is None and not os.path.exists("Makefile"):
         print "You didn't specified any Makefile, and there's no Makefile in the current directory"
         sys.exit(2)
-
+        
     for seedInFile in seedInFiles:
         print "Seeding targets from %s context " % (seedInFile) 
         for line in open(seedInFile).readlines():
