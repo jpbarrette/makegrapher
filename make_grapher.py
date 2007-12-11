@@ -135,7 +135,7 @@ class MakeTree:
     def registerPhony(self, line):
 	for target in line.strip().split(" "):
 	    if target not in self.phonies:
-		self.phonies.append(target)
+ 		self.phonies.append(target)
 
 
 
