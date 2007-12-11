@@ -1,21 +1,9 @@
 (declaim (optimize (speed 0) (space 0) (compilation-speed 0) (debug 3)))
 
-(load "utils.lisp")
+;(load "utils.lisp")
 
 (require 'asdf)
 (asdf:operate 'asdf:load-op 'cl-ppcre)
-(require 'cl-ppcre)
-
-
-(let ((my-scanner (cl-ppcre:create-scanner "a?b")))
-  (cl-ppcre:scan my-scanner "aabaa"))
-
-;# Pattern-specific Variable Values
-;# Directories
-;# Files
-;# Variables
-
-
 (require 'cl-ppcre)
 
 
@@ -25,16 +13,14 @@
 	(endef (cl-ppcre:create-scanner "^endef$"))
 	(not-target (cl-ppcre:create-scanner "^# Not a target:$"))
 	(start (cl-ppcre:create-scanner "^# Files$")) 
-	(not-append (cl-ppcre:create-scanner "^\S+.*:="))
-	(p (cl-ppcre:create-scanner "^\S+.*:[^=]'"))
-	(not-variable-assign (cl-ppcre:create-scanner " = "))
+	(append (cl-ppcre:create-scanner ":="))
+	(variable-assign (cl-ppcre:create-scanner " = "))
         (data-start (cl-ppcre:create-scanner "^# Make data base"))
         (data-end (cl-ppcre:create-scanner "^# Finished Make data base"))
 	(phony (cl-ppcre:create-scanner "^.PHONY: "))
 	(lines nil)
 	(skip-next nil)
 	(in-data nil)
-	(line "")
 	(previous-line "")
 	(in-define nil))
     (labels ((register-phony (line)
@@ -50,36 +36,41 @@
 		 (setf skip-next nil)
 		 (return-from process-line nil))
 	       (when (and (null in-data) (not (null (cl-ppcre:scan data-start line))))
-	       (setf in-data t))
+		 (setf in-data t))
 	       (when (null in-data)
-	       (return-from process-line nil))
-	       (when (member line reserved-comments :test #'string=)
-	       (return-from process-line nil))
+		 (return-from process-line nil))
+	       (when (member line reserved-comments :test #'equal)
+		 (return-from process-line nil))
 	       ;; Checking if we are in a define
 	       (when (not (null (cl-ppcre:scan define line)))
-	       (setf in-define t))
+		 (setf in-define t))
 	       (when (not (null (cl-ppcre:scan endef line)))
-	       (setf in-define nil))
+		 (setf in-define nil)
+		 (return-from process-line nil))
 	       (when in-define
-	       (return-from process-line nil))
+		 (return-from process-line nil))
 	       ;; PHONY processing
 	       (when (not (null (register-phony line)))
-	       (return-from process-line nil))
+		 (return-from process-line nil))
 	       ;; skip comments
 	       (when (eq (char line 0) #\#)
-	       (return-from process-line nil))
+		 (return-from process-line nil))
 	       ;; skip commands
 	       (when (eq (char line 0)  #\Tab)
-	       (return-from process-line nil)))
-	     (let ((non-filtered-lines nil))
-	       (for-each-line-in-stream (line stream)
-		 (let ((new-line (process-line line)))
-		   (when new-line
-		     (setf non-filtered-lines (cons new-line non-filtered-lines)))))
-	       non-filtered-lines)))))
-
-
-
+		 (return-from process-line nil))
+	       ;; skip if line contains :=
+	       ;; skip if variable assignment
+	       (when (cl-ppcre:scan variable-assign line)
+		 (return-from process-line nil))
+	       (when (cl-ppcre:scan append line)
+		 (return-from process-line nil))
+	       line))
+      (for-each-line-in-stream (line stream)
+	(let ((new-line (process-line line)))
+	  (when new-line
+	    (setf lines (cons new-line lines)))))
+      lines)))
+    
 (defun create-graph-from-file (file)
   (with-open-file (stream file :direction :input)
     (create-graph-from-stream stream)))
