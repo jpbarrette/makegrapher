@@ -12,6 +12,8 @@
 
 
 
+(defparameter *pattern-node-re* (cl-ppcre:create-scanner "%"))
+
 
 (let ((define (cl-ppcre:create-scanner "^define "))
       (reserved-comments '("^# automatic" "^# environment" "^# default" "^# makefile"))
@@ -62,45 +64,44 @@
 
 
 
-(let (#|(phony-re (cl-ppcre:create-scanner "^.PHONY: "))|#
-      (pattern-node-re (cl-ppcre:create-scanner "%")))
-  (defun create-graph-creator ()
-    (let ((pattern-edges nil)
-	  (non-pattern-edges (make-hash-table)))
-      (lambda (line)
-	(let* ((answer (split line :char #\:))
-	       (targets (split (car answer)))
-	       (dependencies (split (cadr answer))))
-	  (dolist (target targets)
-	    (if (cl-ppcre:scan pattern-node-re target)
-		(setf pattern-edges (cons (list target dependencies) pattern-edges))
-		(progn 
-		  (dolist (dep dependencies)
-		    (if (cl-ppcre:scan pattern-node-re target)
-			(setf pattern-edges (cons (list target dep) pattern-edges))
-			(hash-table-update! target non-pattern-edges deps
-					    (append deps dependencies)))))))
-	  (values non-pattern-edges pattern-edges))))
-
-  (defun graphviz-export-to-file (fsa file) 
-    "This function will write the dot description of the FSA in the stream."
-    (let ((p (open file :direction :output :if-exists :supersede)))
-      (format p "digraph G {~%  rankdir = LR;~%  size = \"8, 10\";~%") 
-      (format p "~%~%  node [shape = circle];~% ")
-      (dolist (label (hash-keys fsa))
-	(format p " \"~A\"" label))
-      (format p ";~%~%")
-      (loop for target being the hash-keys in fsa using (hash-value deps) 
-	 when (not (null deps)) do
-	 (dolist (dep deps)
-	   (unless (cl-ppcre:scan pattern-node-re dep)
-	     (format p
-		     "  \"~A\" -> \"~A\";~%"
-		     target
-		     dep))))
-      (format p "}~%")
-      (close p)
-      fsa)))
+(defun create-graph-creator ()
+  (let ((pattern-edges nil)
+        (non-pattern-edges (make-hash-table)))
+    (lambda (line)
+      (let* ((answer (split line :char #\:))
+             (targets (split (car answer)))
+             (dependencies (split (cadr answer))))
+        (dolist (target targets)
+          (if (cl-ppcre:scan *pattern-node-re* target)
+              (setf pattern-edges (cons (list target dependencies) pattern-edges))
+              (progn 
+                (dolist (dep dependencies)
+                  (if (cl-ppcre:scan *pattern-node-re* target)
+                      (setf pattern-edges (cons (list target dep) pattern-edges))
+                      (hash-table-update! target non-pattern-edges deps
+                                          (break)
+                                          (cons dep deps)))))))
+        (values non-pattern-edges pattern-edges)))))
+  
+(defun graphviz-export-to-file (fsa file) 
+  "This function will write the dot description of the FSA in the stream."
+  (let ((p (open file :direction :output :if-exists :supersede)))
+    (format p "digraph G {~%  rankdir = LR;~%  size = \"8, 10\";~%") 
+    (format p "~%~%  node [shape = circle];~% ")
+    (dolist (label (hash-keys fsa))
+      (format p " \"~A\"" label))
+    (format p ";~%~%")
+    (loop for target being the hash-keys in fsa using (hash-value deps) 
+          when (not (null deps)) do
+          (dolist (dep deps)
+            (unless (cl-ppcre:scan *pattern-node-re* dep)
+              (format p
+                      "  \"~A\" -> \"~A\";~%"
+                      target
+                      dep))))
+    (format p "}~%")
+    (close p)
+    fsa))
 	
 
 (defun graphviz-export (fsa) 
@@ -115,21 +116,20 @@
 	(setf (gethash target patterns-hash) (create-pattern target)))))
 
 (defun build-graph (targets pattern-edges)
-  "For each target, go through each pattern and check "
-  "if it matches it."
+  "For each target, go through each pattern and check if it matches it."
   (dolist (pattern-edge pattern-edges)
     (let ((target (car pattern-edge))
 	  (deps (cadr pattern-edge)))
-      (update-patterns target)
+      (update-patterns targets target)
       (dolist (dep deps)
-	(update-patterns dep))))
+	(update-patterns targets dep))))
   (with-hash-table-iterator
       (my-iterator targets)
     (loop
-	 (multiple-value-bind (entry-p key value)
-	     (my-iterator)
-	   (dolist (pattern-edge pattern-edges)
-	     )))))
+     (multiple-value-bind (entry-p key value)
+         (my-iterator)
+       (dolist (pattern-edge pattern-edges)
+         (break))))))
        
 
 (defun create-graph-from-stream (stream)
@@ -151,6 +151,5 @@
   (with-open-file (stream file :direction :input)
     (create-graph-from-stream stream)))
 
-;;(create-graph-from-file "Makefile.complete.mk")
 
 
