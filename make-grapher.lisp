@@ -1,12 +1,11 @@
-(declaim (optimize (speed 0) (space 0) (compilation-speed 0) (safety 3) (debug 3)))
+;(declaim (optimize (speed 0) (space 0) (compilation-speed 0) (safety 3) (debug 3)))
+(declaim (optimize (speed 3) (space 3) (compilation-speed 0) (safety 0) (debug 0)))
 
 ;(in-package :com.rrette.make-grapher)
 
 (load "utils")
 
 (require 'asdf)
-;(require 'asdf-install)
-;(asdf-install:install 'cl-ppcre)
 (asdf:operate 'asdf:load-op 'cl-ppcre)
 (require 'cl-ppcre)
 
@@ -66,8 +65,11 @@
 
 (defun create-graph-creator ()
   (let ((pattern-edges nil)
-        (non-pattern-edges (make-hash-table)))
+        (non-pattern-edges (make-hash-table))
+	(i 0))
     (lambda (line)
+      (format t "~S ~%" i)
+      (incf i)
       (let* ((answer (split line :char #\:))
              (targets (split (car answer)))
              (dependencies (split (cadr answer))))
@@ -78,9 +80,10 @@
                 (dolist (dep dependencies)
                   (if (cl-ppcre:scan *pattern-node-re* target)
                       (setf pattern-edges (cons (list target dep) pattern-edges))
-                      (hash-table-update! target non-pattern-edges deps
-                                          (break)
-                                          (cons dep deps)))))))
+		      (progn 
+			(hash-table-update! target non-pattern-edges deps
+					    (cons dep deps))
+			(hash-table-set-if-no-value dep non-pattern-edges nil)))))))
         (values non-pattern-edges pattern-edges)))))
   
 (defun graphviz-export-to-file (fsa file) 
@@ -113,24 +116,44 @@
 (defun update-patterns (patterns-hash target)
   (when (position #\% target) 
     (if (null (gethash target patterns-hash))
-	(setf (gethash target patterns-hash) (create-pattern target)))))
+	(setf (gethash target patterns-hash) (create-pattern target)))
+    t))
+
+(defun is-pattern (target)
+  (position #\% target))
+
+(defun expand-deps (targets deps)
+  (let ((expanded-deps nil))
+    (dolist (dep deps)
+      (if (is-pattern dep)
+	  (setf expanded-deps (nconc expanded-deps (match-pattern targets dep)))
+	  (setf expanded-deps (cons dep expanded-deps))))
+    expanded-deps))
+
+(defun match-pattern (targets pattern)
+  (let ((scanner (create-pattern pattern))
+	(matched-patterns nil))
+    (with-hash-table-iterator
+	(my-iterator targets)
+      (loop
+	   (multiple-value-bind (entry-p key) (my-iterator)
+	     (when (not entry-p)
+	       (return))
+	     (when (cl-ppcre:scan scanner key)
+	       (setf matched-patterns (cons key matched-patterns))))))
+    matched-patterns))
 
 (defun build-graph (targets pattern-edges)
   "For each target, go through each pattern and check if it matches it."
-  (dolist (pattern-edge pattern-edges)
-    (let ((target (car pattern-edge))
-	  (deps (cadr pattern-edge)))
-      (update-patterns targets target)
-      (dolist (dep deps)
-	(update-patterns targets dep))))
-  (with-hash-table-iterator
-      (my-iterator targets)
-    (loop
-     (multiple-value-bind (entry-p key value)
-         (my-iterator)
-       (dolist (pattern-edge pattern-edges)
-         (break))))))
-       
+  (let ((i 0)
+	(len (length pattern-edges)))
+    (dolist (pattern-edge pattern-edges)
+      (incf i)
+      (format t "Processing pattern: ~S/~S: ~S~%" i len (car pattern-edge))
+      (let ((target (car pattern-edge))
+	    (deps (expand-deps targets (cadr pattern-edge))))
+	;(format t "~S ~S~%" target deps)))))
+	))))
 
 (defun create-graph-from-stream (stream)
   (let ((graph-creator (create-graph-creator))
@@ -143,6 +166,8 @@
 	      (apply graph-creator (list line))
 	    (setf targets trgt)
 	    (setf pattern-edges pe)))))
+    (defparameter *pattern-edges* pattern-edges)
+    (defparameter *targets* targets)
     (build-graph targets pattern-edges)
     (graphviz-export targets)))
 

@@ -48,12 +48,20 @@ if there were an empty string between them."
 	     (let ((,var (gethash ,k ,h)))
 		,@body)))))
        
-(defun hash-table-update!/default (func key hash default)
-  (declare (function func))
-  (if (not (nth-value 1 (gethash key hash)))
-      (setf (gethash key hash) default))
-  (setf (gethash key hash) 
-	(funcall func (gethash key hash))))
+(defmacro hash-table-update!/default (key hash var default &rest body)
+  (with-syms (k h d)
+    `(let ((,k ,key)
+	   (,h ,hash)
+	   (,d ,default))
+       (if (not (nth-value 1 (gethash ,k ,h)))
+	   (setf (gethash ,k ,h) ,d))
+       (setf (gethash ,k ,h) 
+	     (let ((,var (gethash ,k ,h)))
+		,@body)))))
+
+(defun hash-table-set-if-no-value (key hash default)
+  (hash-table-update!/default key hash value default
+			      value))
 
 (defun hash-table-ref/default (key hash default)
   (if (not (nth-value 1 (gethash key hash)))
