@@ -1,5 +1,5 @@
-;(declaim (optimize (speed 0) (space 0) (compilation-speed 0) (safety 3) (debug 3)))
-(declaim (optimize (speed 3) (space 3) (compilation-speed 0) (safety 0) (debug 0)))
+(declaim (optimize (speed 0) (space 0) (compilation-speed 0) (safety 3) (debug 3)))
+;(declaim (optimize (speed 3) (space 3) (compilation-speed 0) (safety 0) (debug 0)))
 
 ;(in-package :com.rrette.make-grapher)
 
@@ -111,37 +111,47 @@
     (graphviz-export-to-file fsa "test.dot"))
 
 (defun create-pattern (target)
-  (cl-ppcre:create-scanner (string-replace ".*" "%" target)))
+  (let ((target target))
+    (when (> (position #\% target) 0) ; if % isn't at the beginning, ensure we dont' match a substring.
+      (setf target (format nil "^~S$" target)))
+    (cl-ppcre:create-scanner (string-replace "(.*)" "%" target))))
 	 
-(defun update-patterns (patterns-hash target)
-  (when (position #\% target) 
-    (if (null (gethash target patterns-hash))
-	(setf (gethash target patterns-hash) (create-pattern target)))
-    t))
-
 (defun is-pattern (target)
   (position #\% target))
 
-(defun expand-deps (targets deps)
+(defun expand-deps (stem deps targets)
   (let ((expanded-deps nil))
     (dolist (dep deps)
       (if (is-pattern dep)
-	  (setf expanded-deps (nconc expanded-deps (match-pattern targets dep)))
+	  (if stem
+	      (setf expanded-deps (nconc expanded-deps (string-replace stem "%" dep)))
+	      (setf expanded-deps (nconc expanded-deps (match-pattern targets dep))))
 	  (setf expanded-deps (cons dep expanded-deps))))
     expanded-deps))
 
-(defun match-pattern (targets pattern)
-  (let ((scanner (create-pattern pattern))
-	(matched-patterns nil))
-    (with-hash-table-iterator
-	(my-iterator targets)
-      (loop
-	   (multiple-value-bind (entry-p key) (my-iterator)
-	     (when (not entry-p)
-	       (return))
-	     (when (cl-ppcre:scan scanner key)
-	       (setf matched-patterns (cons key matched-patterns))))))
-    matched-patterns))
+(defun match-pattern (targets target deps)
+  (if (not (is-pattern target))
+      (list target)
+      (let ((scanner (create-pattern target))
+	    (matched-patterns nil))
+	(with-hash-table-iterator
+	    (my-iterator targets)
+	  (loop
+	     (multiple-value-bind (entry-p key) (my-iterator)
+	       (when (not entry-p)
+		 (return))
+	       (multiple-value-bind (val stem) (cl-ppcre:scan-to-strings scanner key)
+		 (when val
+		   (setf matched-patterns (cons (cons key (aref stem 0)) matched-patterns))))))
+	  matched-patterns))))
+
+
+(defun expand-target (target deps targets)
+  (let* ((matched-targets (match-pattern targets target)))
+    (dolist (matched-target matched-targets)
+      (let ((target (car matched-target))
+	    (stem (cdr matched-target)))
+	(format t "~S stem:~S~%" target stem)))))
 
 (defun build-graph (targets pattern-edges)
   "For each target, go through each pattern and check if it matches it."
@@ -150,11 +160,12 @@
     (dolist (pattern-edge pattern-edges)
       (incf i)
       (format t "Processing pattern: ~S/~S: ~S~%" i len (car pattern-edge))
-      (let ((target (car pattern-edge))
-	    (deps (expand-deps targets (cadr pattern-edge))))
-	;(format t "~S ~S~%" target deps)))))
-	))))
-
+      (let ((target (car pattern-edge)))
+	(if (is-pattern target)
+	    (expand-target target (cadr pattern-edge) targets)
+	    (hash-table-update! target targets deps
+				(delete-duplicates deps (cadr pattern-edge))))))))
+  
 (defun create-graph-from-stream (stream)
   (let ((graph-creator (create-graph-creator))
 	(targets nil)
