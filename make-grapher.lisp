@@ -1,5 +1,5 @@
-;(declaim (optimize (speed 0) (space 0) (compilation-speed 0) (safety 3) (debug 3)))
-(declaim (optimize (speed 3) (space 3) (compilation-speed 0) (safety 0) (debug 0)))
+(declaim (optimize (speed 0) (space 0) (compilation-speed 0) (safety 3) (debug 3)))
+;(declaim (optimize (speed 3) (space 3) (compilation-speed 0) (safety 0) (debug 0)))
 
 ;(in-package :com.rrette.make-grapher)
 
@@ -64,24 +64,25 @@
 
 
 (defun create-graph-creator ()
-  (let ((pattern-edges nil)
-        (non-pattern-edges (make-hash-table))
+  (let ((pattern-edges (make-hash-table :test #'equal))
+        (non-pattern-edges (make-hash-table :test #'equal))
 	(i 0))
     (lambda (line)
-      (format t "~S ~%" i)
+      (format t "~S~%" i)
       (incf i)
       (let* ((answer (split line :char #\:))
              (targets (split (car answer)))
              (dependencies (split (cadr answer))))
         (dolist (target targets)
           (if (is-pattern target)
-	      (setf pattern-edges (cons (list target dependencies) pattern-edges))
+	      (hash-table-update!/default target pattern-edges deps nil
+					  (append deps dependencies))
 	      (hash-table-update!/default target non-pattern-edges deps nil
-					  (nconc deps dependencies)))
-	  (dolist (dep dependencies)
-	    (unless (and (is-pattern dep) (is-pattern target))
-	      (hash-table-set-if-no-value dep non-pattern-edges nil))))
-        (values non-pattern-edges pattern-edges)))))
+					  (append deps dependencies))))
+	(dolist (dep dependencies)
+	  (unless (is-pattern dep)
+	    (hash-table-set-if-no-value dep non-pattern-edges nil))))
+      (values non-pattern-edges pattern-edges))))
   
 (defun graphviz-export-to-file (fsa file) 
   "This function will write the dot description of the FSA in the stream."
@@ -113,6 +114,7 @@
       (setf target (format nil "^~A" target)))
     (when (not (eql (position #\% target) (- (length  target) 1)))
       (setf target (format nil "~A$" target)))
+    (format t "pattern:~S~%" target)
     (cl-ppcre:create-scanner (string-replace "(.*)" "%" target))))
 	 
 (defun is-pattern (target)
@@ -121,6 +123,7 @@
 (defun expand-dep (targets stem dep)
   (let ((dep (string-replace stem "%" dep)))
     (multiple-value-bind (value entry-p) (gethash dep targets)
+      (declare (ignore value))
       (if entry-p
 	  dep
 	  nil))))
@@ -144,7 +147,7 @@
 	    (my-iterator targets)
 	  (loop
 	     (multiple-value-bind (entry-p key) (my-iterator)
-	       (when (not entry-p)
+	       (unless entry-p
 		 (return))
 	       (multiple-value-bind (val stem) (cl-ppcre:scan-to-strings scanner key)
 		 (when val
@@ -155,7 +158,7 @@
 
 (defun expand-target (target deps targets)
   (when deps
-    (let* ((matched-targets (match-pattern targets target deps)))
+    (let ((matched-targets (match-pattern targets target deps)))
       (dolist (matched-target matched-targets)
 	(let ((target (car matched-target))
 	      (stem (cdr matched-target)))
@@ -163,18 +166,20 @@
 
 (defun build-graph (targets pattern-edges)
   "For each target, go through each pattern and check if it matches it."
-  (let ((i 0)
-	(len (length pattern-edges)))
-    (dolist (pattern-edge pattern-edges)
-      (incf i)
-      (let ((target (car pattern-edge))
-	    (dependencies (cadr pattern-edge))
-	    (*pretty-print*))
-	(format t "Processing pattern: ~S/~S: ~S: ~S~%" i len target dependencies)
-	(if (is-pattern target)
-	    (expand-target target dependencies targets)
-	    (hash-table-update! target targets deps
-				(delete-duplicates (append dependencies deps))))))))
+  (let ((i 0))
+    (with-hash-table-iterator 
+	(my-iterator pattern-edges)
+      (loop
+	 (multiple-value-bind (entry-p target dependencies) (my-iterator)
+	   (unless entry-p
+	     (return))
+	   (incf i)
+	   (let ((*pretty-print* nil))
+	     (format t "Processing pattern: ~S/~S: ~S: ~S~%" i "?" target dependencies)
+	     (if (is-pattern target)
+		 (expand-target target dependencies targets)
+		 (hash-table-update! target targets deps
+				     (delete-duplicates (append dependencies deps))))))))))
   
 (defun create-graph-from-stream (stream)
   (let ((graph-creator (create-graph-creator))
