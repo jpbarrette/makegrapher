@@ -1,5 +1,5 @@
-(declaim (optimize (speed 0) (space 0) (compilation-speed 0) (safety 3) (debug 3)))
-;(declaim (optimize (speed 3) (space 3) (compilation-speed 0) (safety 0) (debug 0)))
+;(declaim (optimize (speed 0) (space 0) (compilation-speed 0) (safety 3) (debug 3)))
+(declaim (optimize (speed 3) (space 3) (compilation-speed 0) (safety 0) (debug 0)))
 
 ;(in-package :com.rrette.make-grapher)
 
@@ -119,13 +119,20 @@
 (defun is-pattern (target)
   (position #\% target))
 
-(defun expand-deps (stem deps targets)
+(defun expand-dep (targets stem dep)
+  (let ((dep (string-replace stem "%" dep)))
+    (multiple-value-bind (value entry-p) (gethash dep targets)
+      (if entry-p
+	  dep
+	  nil))))
+    
+
+(defun expand-deps (targets stem deps)
   (let ((expanded-deps nil))
     (dolist (dep deps)
       (if (is-pattern dep)
-	  (if stem
-	      (setf expanded-deps (nconc expanded-deps (string-replace stem "%" dep)))
-	      (setf expanded-deps (nconc expanded-deps (match-pattern targets dep))))
+	  (let ((expanded-dep (expand-dep targets stem dep)))
+	    (when (setf expanded-deps (cons expanded-dep expanded-deps))))
 	  (setf expanded-deps (cons dep expanded-deps))))
     expanded-deps))
 
@@ -142,12 +149,13 @@
 		 (return))
 	       (multiple-value-bind (val stem) (cl-ppcre:scan-to-strings scanner key)
 		 (when val
-		   (setf matched-patterns (cons (cons key (aref stem 0)) matched-patterns))))))
-	  matched-patterns))))
+		   (let ((deps (expand-deps targets (aref stem 0) deps)))
+		     (setf matched-patterns (cons (cons key deps) matched-patterns))))))
+	  matched-patterns)))))
 
 
 (defun expand-target (target deps targets)
-  (let* ((matched-targets (match-pattern targets target)))
+  (let* ((matched-targets (match-pattern targets target deps)))
     (dolist (matched-target matched-targets)
       (let ((target (car matched-target))
 	    (stem (cdr matched-target)))
@@ -164,7 +172,7 @@
 	(if (is-pattern target)
 	    (expand-target target (cadr pattern-edge) targets)
 	    (hash-table-update! target targets deps
-				(delete-duplicates deps (cadr pattern-edge))))))))
+				(delete-duplicates (cons (cadr pattern-edge) deps))))))))
   
 (defun create-graph-from-stream (stream)
   (let ((graph-creator (create-graph-creator))
