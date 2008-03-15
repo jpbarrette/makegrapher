@@ -74,16 +74,13 @@
              (targets (split (car answer)))
              (dependencies (split (cadr answer))))
         (dolist (target targets)
-          (if (cl-ppcre:scan *pattern-node-re* target)
-              (setf pattern-edges (cons (list target dependencies) pattern-edges))
-              (progn 
-                (dolist (dep dependencies)
-                  (if (cl-ppcre:scan *pattern-node-re* target)
-                      (setf pattern-edges (cons (list target dep) pattern-edges))
-		      (progn 
-			(hash-table-update! target non-pattern-edges deps
-					    (cons dep deps))
-			(hash-table-set-if-no-value dep non-pattern-edges nil)))))))
+          (if (is-pattern target)
+	      (setf pattern-edges (cons (list target dependencies) pattern-edges))
+	      (hash-table-update!/default target non-pattern-edges deps nil
+					  (nconc deps dependencies)))
+	  (dolist (dep dependencies)
+	    (unless (and (is-pattern dep) (is-pattern target))
+	      (hash-table-set-if-no-value dep non-pattern-edges nil))))
         (values non-pattern-edges pattern-edges)))))
   
 (defun graphviz-export-to-file (fsa file) 
@@ -113,7 +110,9 @@
 (defun create-pattern (target)
   (let ((target target))
     (when (> (position #\% target) 0) ; if % isn't at the beginning, ensure we dont' match a substring.
-      (setf target (format nil "^~S$" target)))
+      (setf target (format nil "^~A" target)))
+    (when (not (eql (position #\% target) (- (length  target) 1)))
+      (setf target (format nil "~A$" target)))
     (cl-ppcre:create-scanner (string-replace "(.*)" "%" target))))
 	 
 (defun is-pattern (target)
@@ -155,11 +154,12 @@
 
 
 (defun expand-target (target deps targets)
-  (let* ((matched-targets (match-pattern targets target deps)))
-    (dolist (matched-target matched-targets)
-      (let ((target (car matched-target))
-	    (stem (cdr matched-target)))
-	(format t "~S stem:~S~%" target stem)))))
+  (when deps
+    (let* ((matched-targets (match-pattern targets target deps)))
+      (dolist (matched-target matched-targets)
+	(let ((target (car matched-target))
+	      (stem (cdr matched-target)))
+	  (format t "~S stem:~S~%" target stem))))))
 
 (defun build-graph (targets pattern-edges)
   "For each target, go through each pattern and check if it matches it."
@@ -167,12 +167,14 @@
 	(len (length pattern-edges)))
     (dolist (pattern-edge pattern-edges)
       (incf i)
-      (format t "Processing pattern: ~S/~S: ~S~%" i len (car pattern-edge))
-      (let ((target (car pattern-edge)))
+      (let ((target (car pattern-edge))
+	    (dependencies (cadr pattern-edge))
+	    (*pretty-print*))
+	(format t "Processing pattern: ~S/~S: ~S: ~S~%" i len target dependencies)
 	(if (is-pattern target)
-	    (expand-target target (cadr pattern-edge) targets)
+	    (expand-target target dependencies targets)
 	    (hash-table-update! target targets deps
-				(delete-duplicates (cons (cadr pattern-edge) deps))))))))
+				(delete-duplicates (append dependencies deps))))))))
   
 (defun create-graph-from-stream (stream)
   (let ((graph-creator (create-graph-creator))
