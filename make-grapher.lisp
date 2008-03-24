@@ -1,5 +1,5 @@
-(declaim (optimize (speed 0) (space 0) (compilation-speed 0) (safety 3) (debug 3)))
-;(declaim (optimize (speed 3) (space 3) (compilation-speed 0) (safety 0) (debug 0)))
+;(declaim (optimize (speed 0) (space 0) (compilation-speed 0) (safety 3) (debug 3)))
+(declaim (optimize (speed 3) (space 3) (compilation-speed 0) (safety 0) (debug 0)))
 
 ;(in-package :com.rrette.make-grapher)
 
@@ -65,11 +65,8 @@
 
 (defun create-graph-creator ()
   (let ((pattern-edges (make-hash-table :test #'equal))
-        (non-pattern-edges (make-hash-table :test #'equal))
-	(i 0))
+        (non-pattern-edges (make-hash-table :test #'equal)))
     (lambda (line)
-      (format t "~S~%" i)
-      (incf i)
       (let* ((answer (split line :char #\:))
              (targets (split (car answer)))
              (dependencies (split (cadr answer))))
@@ -78,7 +75,7 @@
 	      (hash-table-update!/default target pattern-edges deps nil
 					  (append deps dependencies))
 	      (hash-table-update!/default target non-pattern-edges deps nil
-					  (append deps dependencies))))
+					  (delete-duplicates (append deps dependencies) :test #'string=))))
 	(dolist (dep dependencies)
 	  (unless (is-pattern dep)
 	    (hash-table-set-if-no-value dep non-pattern-edges nil))))
@@ -87,8 +84,8 @@
 (defun graphviz-export-to-file (fsa file) 
   "This function will write the dot description of the FSA in the stream."
   (let ((p (open file :direction :output :if-exists :supersede)))
-    (format p "digraph G {~%  rankdir = LR;~%  size = \"8, 10\";~%") 
-    (format p "~%~%  node [shape = circle];~% ")
+    (format p "digraph G {~%  rankdir = LR;~%  size = \"8, 11\";~%") 
+    (format p "~%~%  rotate=90;~%ratio = auto;~%node [shape = plaintext];~% ")
     (dolist (label (hash-keys fsa))
       (format p " \"~A\"" label))
     (format p ";~%~%")
@@ -114,7 +111,6 @@
       (setf target (format nil "^~A" target)))
     (when (not (eql (position #\% target) (- (length  target) 1)))
       (setf target (format nil "~A$" target)))
-    (format t "pattern:~S~%" target)
     (cl-ppcre:create-scanner (string-replace "(.*)" "%" target))))
 	 
 (defun is-pattern (target)
@@ -166,25 +162,24 @@
 
 (defun build-graph (targets pattern-edges)
   "For each target, go through each pattern and check if it matches it."
-  (let ((i 0))
-    (with-hash-table-iterator 
-	(my-iterator pattern-edges)
-      (loop
-	 (multiple-value-bind (entry-p target dependencies) (my-iterator)
-	   (unless entry-p
-	     (return))
-	   (incf i)
-	   (let ((*pretty-print* nil))
-	     (format t "Processing pattern: ~S/~S: ~S: ~S~%" i "?" target dependencies)
-	     (if (is-pattern target)
-		 (expand-target target dependencies targets)
-		 (hash-table-update! target targets deps
-				     (delete-duplicates (append dependencies deps))))))))))
+  (format t "Processing patterns ... ~%")
+  (with-hash-table-iterator 
+      (my-iterator pattern-edges)
+    (loop
+       (multiple-value-bind (entry-p target dependencies) (my-iterator)
+	 (unless entry-p
+	   (return))
+	 (let ((*pretty-print* nil))
+	   (if (is-pattern target)
+	       (expand-target target dependencies targets)
+	       (hash-table-update! target targets deps
+				   (delete-duplicates (append dependencies deps) :test #'string=))))))))
   
 (defun create-graph-from-stream (stream)
   (let ((graph-creator (create-graph-creator))
 	(targets nil)
 	(pattern-edges nil))
+    (format t "Reading makefile ...~%")
     (for-each-line-in-stream (line stream)
       (let ((new-line (process-line line)))
 	(when new-line
@@ -197,10 +192,75 @@
     (build-graph targets pattern-edges)
     (graphviz-export targets)))
 
+
     
 (defun create-graph-from-file (file)
   (with-open-file (stream file :direction :input)
     (create-graph-from-stream stream)))
 
+
+(defun get-dependencies (target targets visited-nodes)
+  (multiple-value-bind (deps entry-p) (gethash target visited-nodes)
+    (if entry-p
+	deps ; we already computed the dependencies
+	(progn 
+	  (setf (gethash target visited-nodes) nil) ; now it is visited
+	  (gethash target targets)))))
+
+(defun update-dependencies (node target visited-nodes)
+  (hash-table-update!/default node visited-nodes dependencies nil
+			      (delete-duplicates (cons target dependencies) :test #'string=)))
+
+
+(defun handle-target (path target new-targets visited-nodes paths)
+  (multiple-value-bind (value entry-p) (gethash target new-targets)
+    (declare (ignore value))
+    (when entry-p
+      (dolist (node path)
+	(update-dependencies node target visited-nodes))
+      (hash-table-update!/default (car path) new-targets dependencies nil
+				  (delete-duplicates (cons target dependencies) :test #'string=)))
+    (unless entry-p
+      (setf paths (push (append path (list target)) paths))))
+  paths)
+
+(defun seed-in (pattern targets)
+  (let ((paths nil)
+	(i 0)
+	(scanner (cl-ppcre:create-scanner pattern))
+	(new-targets (make-hash-table :test #'equal))
+	(visited-nodes (make-hash-table :test #'equal)))
+    (labels ()
+      (with-hash-table-iterator (my-iterator targets)
+	(loop (multiple-value-bind (entry-p target) (my-iterator)
+		(unless entry-p
+		  (return))
+		(when (cl-ppcre:scan scanner target)
+		  (hash-table-set-if-no-value target new-targets nil)
+		  (setf paths (push (list target) paths))))))
+      (setf paths (reverse paths))
+      (let ((start-node nil))
+	(loop 
+	   (unless paths (return))
+	   (when (not (eq (length paths) (length (remove-duplicates paths :test #'equal))))
+	     (break))
+	   (incf i)
+	   (let* ((path (pop paths))
+		  (last-node (car (last path))))
+	     (when (not (string= start-node (car path)))
+	       (setf start-node (car path))
+	       (format t "Processing node ~A ~%" start-node))
+					;(format t "~A Processing path ~S~%" i path)
+	     (let ((deps (get-dependencies last-node targets visited-nodes)))
+	       #|(when (equal last-node "../data/lpa/query-list.bin")
+	       (break))|#
+	     (dolist (dep deps)
+	       (setq paths (handle-target path dep new-targets visited-nodes paths))))))))
+    new-targets))
+	   
+
+
+       
+	   
 
 

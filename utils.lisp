@@ -40,6 +40,13 @@ if there were an empty string between them."
 		 syms)
      ,@body))
 
+(defmacro hashash (key hash)
+  (with-syms (value entry-p)
+    `(multiple-value-bind (,value ,entry-p) (gethash ,key ,hash)
+       (declare (ignore ,value))
+       ,entry-p)))
+		
+
 (defmacro hash-table-update! (key hash var &rest body)
   (with-syms (k h)
     `(let ((,k ,key)
