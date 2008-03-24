@@ -10,11 +10,6 @@
 
 
 
-
-
-
-
-
 (defun split (string &key (char #\Space) (accept-empty nil))
     "Returns a list of substrings of string
 divided by the character given.
