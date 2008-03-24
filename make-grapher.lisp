@@ -1,5 +1,5 @@
-;(declaim (optimize (speed 0) (space 0) (compilation-speed 0) (safety 3) (debug 3)))
-(declaim (optimize (speed 3) (space 3) (compilation-speed 0) (safety 0) (debug 0)))
+(declaim (optimize (speed 0) (space 0) (compilation-speed 0) (safety 3) (debug 3)))
+;(declaim (optimize (speed 3) (space 3) (compilation-speed 0) (safety 0) (debug 0)))
 
 ;(in-package :com.rrette.make-grapher)
 
@@ -224,10 +224,39 @@
       (setf paths (push (append path (list target)) paths))))
   paths)
 
-(defun seed-in (pattern targets)
+
+(defun regex-seed-in (pattern)
+  "This function will seed in the graph all targets that matches 
+the given regex pattern"
+  (let ((scanner (cl-ppcre:create-scanner pattern)))
+    (lambda (target targets)
+      (declare (ignore targets))
+      (when (cl-ppcre:scan scanner target)
+	target))))
+
+(defun seed-in (text)
+  "This function will seed in the graph all targets that contains the given text"
+  (lambda (target targets)
+    (declare (ignore targets))
+    (when (search text target)
+      target)))
+
+(defun seed-rebuilding-targets ()
+  "This function will seed any target for which dependencies are done, 
+but are gonna to be built again because of this one."
+  (lambda (target targets)
+    (let ((deps nil))
+      (when (probe-file target)
+	(dolist (dep (gethash target targets))
+	  (when (or (not (probe-file dep)) 
+		    (> (file-write-date dep) (file-write-date target)))
+	    (setf deps (cons dep deps)))))
+      deps)))
+      
+
+(defun filter-graph (filters targets)
   (let ((paths nil)
 	(i 0)
-	(scanner (cl-ppcre:create-scanner pattern))
 	(new-targets (make-hash-table :test #'equal))
 	(visited-nodes (make-hash-table :test #'equal)))
     (labels ()
@@ -235,9 +264,15 @@
 	(loop (multiple-value-bind (entry-p target) (my-iterator)
 		(unless entry-p
 		  (return))
-		(when (cl-ppcre:scan scanner target)
-		  (hash-table-set-if-no-value target new-targets nil)
-		  (setf paths (push (list target) paths))))))
+		(dolist (filter filters)
+		  (let ((value (funcall filter target targets)))
+		    (when (not (null value))
+		      (when (atom value)
+			(setq value (list value)))
+		      (dolist (v value)
+			(break)
+			(hash-table-set-if-no-value v new-targets nil)
+			(setf paths (push (list v) paths)))))))))
       (setf paths (reverse paths))
       (let ((start-node nil))
 	(loop 
