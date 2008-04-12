@@ -9,7 +9,12 @@
 (let ((graph (create-graph-from-file "Makefile.complete.mk")))
   (graphviz-export (filter-graph (list (seed-in "../tmp/build/*")) graph)))
 
-(graphviz-export (filter-graph (list (seed-in "../tmp/build/")) *targets*))
+
+(let ((graph (create-graph-from-file "Makefile.complete.mk")))
+  (graphviz-export graph))
+
+
+(graphviz-export (filter-graph (list (seed-in "../tmp/Named_Entity")) *targets*))
 
 
 (documentation 'seed-in 'function)
