@@ -242,8 +242,8 @@ the given regex pattern"
       target)))
 
 (defun seed-rebuilding-targets ()
-  "This function will seed any target for which dependencies are done, 
-but are gonna to be built again because of this one."
+  "This function will seed any dependency for which target is done, 
+but is gonna to be built again because of one of them."
   (lambda (target targets)
     (let ((deps nil))
       (when (probe-file target)
@@ -270,7 +270,6 @@ but are gonna to be built again because of this one."
 		      (when (atom value)
 			(setq value (list value)))
 		      (dolist (v value)
-			(break)
 			(hash-table-set-if-no-value v new-targets nil)
 			(setf paths (push (list v) paths)))))))))
       (setf paths (reverse paths))
