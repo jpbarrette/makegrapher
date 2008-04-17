@@ -5,6 +5,10 @@
 
 (graphviz-export (seed-in "../tmp/build/" *targets*))
 
+(setf *graph* (create-graph-from-file "Makefile.complete.mk"))
+(setf *stripped-graph* (filter-graph (list (seed-in "../tmp/Named_Entity")) *graph*))
+
+*stripped-graph*
 
 (let ((graph (create-graph-from-file "Makefile.complete.mk")))
   (graphviz-export (filter-graph (list (seed-in "../tmp/build/*")) graph)))
@@ -20,5 +24,9 @@
 (documentation 'seed-in 'function)
 
 
-(let ((graph (create-graph-from-file "test.complete.mk")))
-  (graphviz-export (filter-graph (list (seed-rebuilding-targets)) graph)))
+(setf *other-graph* (let ((graph (create-graph-from-file "test.complete.mk")))
+		      (filter-graph (list (seed-all) (seed-rebuilding-targets)) graph)))
+
+(graphviz-export *other-graph*)
+
+

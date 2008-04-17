@@ -49,7 +49,12 @@ if there were an empty string between them."
        (setf (gethash ,k ,h)
 	     (let ((,var (gethash ,k ,h)))
 		,@body)))))
-       
+
+(defmacro when-bind ((var test) &body body)
+  `(let ((,var ,test))
+     (when ,var
+       ,@body)))
+
 (defmacro hash-table-update!/default (key hash var default &rest body)
   (with-syms (k h d)
     `(let ((,k ,key)

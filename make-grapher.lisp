@@ -3,17 +3,19 @@
 
 ;(in-package :com.rrette.make-grapher)
 
-(load "utils")
+(load "utils.lisp")
+
 
 (require 'asdf)
 (asdf:operate 'asdf:load-op 'cl-ppcre)
 (require 'cl-ppcre)
 
-
-
 (defparameter *pattern-node-re* (cl-ppcre:create-scanner "%"))
 
-
+(defclass makefile-graph ()
+  ((targets :accessor makefile-graph-targets :initform (make-hash-table :test 'equal) :initarg :targets)
+   (properties :accessor makefile-graph-properties :initform (make-hash-table :test 'equal) :initarg :properties)))
+		 
 (let ((define (cl-ppcre:create-scanner "^define "))
       (reserved-comments '("^# automatic" "^# environment" "^# default" "^# makefile"))
       (endef (cl-ppcre:create-scanner "^endef$"))
@@ -62,7 +64,6 @@
     line))
 
 
-
 (defun create-graph-creator ()
   (let ((pattern-edges (make-hash-table :test #'equal))
         (non-pattern-edges (make-hash-table :test #'equal)))
@@ -80,16 +81,25 @@
 	  (unless (is-pattern dep)
 	    (hash-table-set-if-no-value dep non-pattern-edges nil))))
       (values non-pattern-edges pattern-edges))))
-  
-(defun graphviz-export-to-file (fsa file) 
+
+(defun output-properties (stream properties) 
+  (format stream "~{~a~^,~}" (map 'list (lambda (property)
+					  (format nil "~A=~A" (car property) (cdr property)))
+				  properties)))
+
+(defun graphviz-export-to-file (graph file) 
   "This function will write the dot description of the FSA in the stream."
   (let ((p (open file :direction :output :if-exists :supersede)))
     (format p "digraph G {~%  rankdir = LR;~%  size = \"8, 11\";~%") 
-    (format p "~%~%  rotate=90;~%ratio = auto;~%node [shape = plaintext];~% ")
-    (dolist (label (hash-keys fsa))
-      (format p " \"~A\"" label))
+    (format p "~%~%  rotate=90;~%  ratio = auto;~%  node [shape = plaintext];~%  ")
+    (dolist (label (hash-keys (makefile-graph-targets graph)))
+      (when (null (gethash label (makefile-graph-properties graph)))
+	(format p " \"~A\"" label)))
     (format p ";~%~%")
-    (loop for target being the hash-keys in fsa using (hash-value deps) 
+    (dolist (label (hash-keys (makefile-graph-targets graph)))
+      (when-bind (properties (gethash label (makefile-graph-properties graph)))
+	(format p " \"~A\" [~A];~%" label (output-properties nil properties))))
+    (loop for target being the hash-keys in (makefile-graph-targets graph) using (hash-value deps) 
           when (not (null deps)) do
           (dolist (dep deps)
             (unless (cl-ppcre:scan *pattern-node-re* dep)
@@ -99,7 +109,7 @@
                       dep))))
     (format p "}~%")
     (close p)
-    fsa))
+    graph))
 	
 
 (defun graphviz-export (fsa) 
@@ -187,11 +197,7 @@
 	      (apply graph-creator (list line))
 	    (setf targets trgt)
 	    (setf pattern-edges pe)))))
-    (defparameter *pattern-edges* pattern-edges)
-    (defparameter *targets* targets)
-    (build-graph targets pattern-edges)
-    (graphviz-export targets)))
-
+    (make-instance 'makefile-graph :targets targets)))
 
     
 (defun create-graph-from-file (file)
@@ -229,43 +235,50 @@
   "This function will seed in the graph all targets that matches 
 the given regex pattern"
   (let ((scanner (cl-ppcre:create-scanner pattern)))
-    (lambda (target targets)
-      (declare (ignore targets))
+    (lambda (target graph)
+      (declare (ignore graph))
       (when (cl-ppcre:scan scanner target)
 	target))))
 
 (defun seed-in (text)
   "This function will seed in the graph all targets that contains the given text"
-  (lambda (target targets)
-    (declare (ignore targets))
+  (lambda (target graph)
+    (declare (ignore graph))
     (when (search text target)
       target)))
+
+(defun seed-all ()
+  "This function will seed all the targets in the graph"
+  (lambda (target graph)
+    target))
 
 (defun seed-rebuilding-targets ()
   "This function will seed any dependency for which target is done, 
 but is gonna to be built again because of one of them."
-  (lambda (target targets)
+  (lambda (target graph)
     (let ((deps nil))
       (when (probe-file target)
-	(dolist (dep (gethash target targets))
+	(dolist (dep (gethash target (makefile-graph-targets graph)))
 	  (when (or (not (probe-file dep)) 
 		    (> (file-write-date dep) (file-write-date target)))
+	    (hash-table-update!/default dep (makefile-graph-properties graph) properties nil
+					(append (list (cons "fontcolor" "red")) properties))
 	    (setf deps (cons dep deps)))))
       deps)))
       
 
-(defun filter-graph (filters targets)
+(defun filter-graph (filters graph)
   (let ((paths nil)
 	(i 0)
 	(new-targets (make-hash-table :test #'equal))
 	(visited-nodes (make-hash-table :test #'equal)))
     (labels ()
-      (with-hash-table-iterator (my-iterator targets)
+      (with-hash-table-iterator (my-iterator (makefile-graph-targets graph))
 	(loop (multiple-value-bind (entry-p target) (my-iterator)
 		(unless entry-p
 		  (return))
 		(dolist (filter filters)
-		  (let ((value (funcall filter target targets)))
+		  (let ((value (funcall filter target graph)))
 		    (when (not (null value))
 		      (when (atom value)
 			(setq value (list value)))
@@ -277,7 +290,8 @@ but is gonna to be built again because of one of them."
 	(loop 
 	   (unless paths (return))
 	   (when (not (eq (length paths) (length (remove-duplicates paths :test #'equal))))
-	     (break))
+	     ;(break)
+	     )
 	   (incf i)
 	   (let* ((path (pop paths))
 		  (last-node (car (last path))))
@@ -285,12 +299,14 @@ but is gonna to be built again because of one of them."
 	       (setf start-node (car path))
 	       (format t "Processing node ~A ~%" start-node))
 					;(format t "~A Processing path ~S~%" i path)
-	     (let ((deps (get-dependencies last-node targets visited-nodes)))
+	     (let ((deps (get-dependencies last-node (makefile-graph-targets graph) visited-nodes)))
 	       #|(when (equal last-node "../data/lpa/query-list.bin")
 	       (break))|#
 	     (dolist (dep deps)
 	       (setq paths (handle-target path dep new-targets visited-nodes paths))))))))
-    new-targets))
+    (make-instance 'makefile-graph 
+		   :targets new-targets 
+		   :properties (makefile-graph-properties graph))))
 	   
 
 
