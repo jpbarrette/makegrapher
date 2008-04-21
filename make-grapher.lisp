@@ -11,7 +11,6 @@
 (require 'cl-ppcre)
 
 
-
 (defparameter *pattern-node-re* (cl-ppcre:create-scanner "%"))
 
 
