@@ -55,6 +55,14 @@ if there were an empty string between them."
      (when ,var
        ,@body)))
 
+(defmacro if-bind ((var condition) then &optional else)
+  (etypecase var
+    (cons `(multiple-value-bind ,var ,condition
+             (if ,(car var) ,then ,else)))
+    (symbol `(let ((,var ,condition)) 
+               (if ,var ,then ,else)))))
+
+
 (defmacro hash-table-update!/default (key hash var default &rest body)
   (with-syms (k h d)
     `(let ((,k ,key)

@@ -8,6 +8,6 @@
   :version "0.1.0"
   :maintainer "Jean-Philippe Barrette-LaPierre <jpb@rrette.com>"
   :licence "MIT"
-  :depends-on ('cl-ppcre)
+  :depends-on ('cl-ppcre 'cl-graph)
   :components ((:file "make-grapher" :depends-on ("utils"))
                (:file "utils")))
