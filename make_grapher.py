@@ -415,7 +415,7 @@ class MakeTree:
                 
         return MakeTree(nodes = nodes)
 
-    def connectedGraphs(self, startingNodes = []):
+    def connectedGraphs(self, startingNodes = [], maxDepth = None):
         print "Filtering nodes not connected..."
         nodes = {}
 
@@ -439,7 +439,9 @@ class MakeTree:
                 print " first node:", paths[0][0]
 
             path = paths.pop()
-            print path
+            if maxDepth is not None and maxDepth < len(path):
+                continue
+
             lastNode = path[-1]
             #print " first node:" , path[0]
 
@@ -499,19 +501,23 @@ if __name__ == "__main__":
 
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:RBpvc:",
+        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:RBpvcC:g:M:",
                                    ["seed-in=",
                                     "sort-dot-entries",
                                     "remove-extra-deps",
                                     "show-rebuilding-targets",
                                     "print-rebuilding-targets",
-                                    "connected=",
+                                    "connected",
+                                    "connected-start=",
+                                    "connected-graph=",
+                                    "max-depth=",
                                     "verbose"])
     except getopt.GetoptError:
         # print help information and exit:
         usage()
         sys.exit(2)
 
+    maxDepth = None
     seedsIn = []
     seedInFiles = []
     seedsOut = []
@@ -525,7 +531,9 @@ if __name__ == "__main__":
     removeExtraDeps = False
     showRebuildingTargets = False
     printRebuildingTargets = False
-    connected = None
+    connected = False
+    connectedStarts = []
+    connectedGraphs = []
     
     for o, a in opts:
         if o == "-o":
@@ -558,7 +566,14 @@ if __name__ == "__main__":
         if o in ("-p", "--print-rebuilding-targets"):
             printRebuildingTargets = True
         if o in ("-c", "--connected"):
-            connected = a
+            connected = True
+        if o in ("-C", "--connected-start"):
+            connected = True
+            connectedStarts.append(a)
+        if o in ("-g", "--connected-graph"):
+            connectedGraphs.append(a)
+        if o in ("-M", "--max-depth"):
+            maxDepth = a
         
 
     if makefile is None and not os.path.exists("Makefile"):
@@ -575,7 +590,9 @@ if __name__ == "__main__":
     if removeExtraDeps:
         filteredTree = filteredTree.filterExtraDeps()
     if connected:
-        filteredTree = filteredTree.connectedGraph(connected)
+        c = filteredTree.connectedGraphs(connectedStarts, maxDepth)
+        pdb.set_trace()
+        filteredTree = MakeTree(nodes = c[0][connectedStarts[0]])
     if outputFile is not None:
         filteredTree.graphVizExport(outputFile, sortDotEntries = sortDotEntries)
     if printRebuildingTargets:
