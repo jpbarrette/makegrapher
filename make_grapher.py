@@ -73,7 +73,7 @@ class MakeTree:
 		 makefile = None, 
 		 invalidateNotTargets = False,
 		 preFilterOut = None,
-                 runMake = True,
+                 runMake = False,
                  rebuildingNodes = None):
         
         if rebuildingNodes is None:
@@ -305,10 +305,13 @@ class MakeTree:
     
 		    
 
-    def filterNodes(self, seedsIn, seedsOut = None, allInBetween = False, showRebuildingTargets = False):
+    def filterNodes(self, seedsIn, seedsOut = [], allInBetween = False, showRebuildingTargets = False):
         print "Filtering nodes..."
         pp = pprint.PrettyPrinter(indent=2)
         targetsMap = copy.copy(self.nodes)
+
+        if seedsOut is None:
+            seedsOut = []
 
         reIn = []
         for seedIn in seedsIn:
@@ -412,6 +415,60 @@ class MakeTree:
                 
         return MakeTree(nodes = nodes)
 
+    def connectedGraphs(self, startingNodes = [], maxDepth = None):
+        print "Filtering nodes not connected..."
+        nodes = {}
+
+        visitedNodes = {}
+        nbNodes = len(self.nodes.keys())
+
+        print startingNodes
+        if len(startingNodes) > 0:
+            paths = [startingNodes]
+        else:
+            paths = map(lambda t: [t], self.nodes.keys())
+        i = 0
+
+        graphs = {}
+
+        while len(paths) != 0:
+            i += 1
+            if i % 5000 == 0:
+                vn = len(visitedNodes)
+                print "Connected nodes processing:", len(visitedNodes), "/", nbNodes, " (", (vn / nbNodes) * 100, "%)"
+                print " first node:", paths[0][0]
+
+            path = paths.pop()
+            if maxDepth is not None and maxDepth < len(path):
+                continue
+
+            lastNode = path[-1]
+            #print " first node:" , path[0]
+
+            graph = graphs.setdefault(path[0], {})
+            if visitedNodes.has_key(lastNode):
+                firstNode = visitedNodes[lastNode]
+                if firstNode == path[0]:
+                    continue
+
+                g = graphs[firstNode]
+                for n in graph.keys():
+                    visitedNodes[n] = firstNode
+                    deps = g.setdefault(n, [])
+                    g[n] = deps + graph[n]
+                del graphs[path[0]]
+                continue
+
+            visitedNodes[lastNode] = path[0]
+            graph[lastNode] = copy.copy(self.nodes[lastNode])
+
+            deps = self.nodes[lastNode]
+            for dep in deps:
+                newpath = path + [dep]
+                paths.append(newpath)
+
+
+        return graphs, visitedNodes
 
 def usage():
     print """
@@ -434,6 +491,7 @@ it would make a real difference.
 -o, --output-file=FILE          the output file name (the dot file).
 -v, --verbose                   toggle verbose output
 -T, --database                  makefile output that is used as the database
+-c, --connected                 produce connected graph to node
 
 """
 
@@ -443,18 +501,23 @@ if __name__ == "__main__":
 
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:RBpv",
+        opts, args = getopt.getopt(sys.argv[1:], "aF:to:fT:s:S:RBpvcC:g:M:",
                                    ["seed-in=",
                                     "sort-dot-entries",
                                     "remove-extra-deps",
                                     "show-rebuilding-targets",
                                     "print-rebuilding-targets",
+                                    "connected",
+                                    "connected-start=",
+                                    "connected-graph=",
+                                    "max-depth=",
                                     "verbose"])
     except getopt.GetoptError:
         # print help information and exit:
         usage()
         sys.exit(2)
 
+    maxDepth = None
     seedsIn = []
     seedInFiles = []
     seedsOut = []
@@ -468,6 +531,9 @@ if __name__ == "__main__":
     removeExtraDeps = False
     showRebuildingTargets = False
     printRebuildingTargets = False
+    connected = False
+    connectedStarts = []
+    connectedGraphs = []
     
     for o, a in opts:
         if o == "-o":
@@ -499,6 +565,15 @@ if __name__ == "__main__":
             showRebuildingTargets = True
         if o in ("-p", "--print-rebuilding-targets"):
             printRebuildingTargets = True
+        if o in ("-c", "--connected"):
+            connected = True
+        if o in ("-C", "--connected-start"):
+            connected = True
+            connectedStarts.append(a)
+        if o in ("-g", "--connected-graph"):
+            connectedGraphs.append(a)
+        if o in ("-M", "--max-depth"):
+            maxDepth = a
         
 
     if makefile is None and not os.path.exists("Makefile"):
@@ -514,14 +589,16 @@ if __name__ == "__main__":
     filteredTree = tree.filterNodes(seedsIn, seedsOut, allInBetween = allInBetween, showRebuildingTargets = showRebuildingTargets)
     if removeExtraDeps:
         filteredTree = filteredTree.filterExtraDeps()
+    if connected:
+        c = filteredTree.connectedGraphs(connectedStarts, maxDepth)
+        pdb.set_trace()
+        filteredTree = MakeTree(nodes = c[0][connectedStarts[0]])
     if outputFile is not None:
         filteredTree.graphVizExport(outputFile, sortDotEntries = sortDotEntries)
     if printRebuildingTargets:
         for target in filteredTree.rebuildingNodes:
             print target
-
-    
-
+        
 #                     if allInBetween:
 #                         for i in range(len(newpath)):
 #                             nodes.setdefault(newpath[i], [])
@@ -531,4 +608,3 @@ if __name__ == "__main__":
 #                     else:
 #                         if dep not in nodes[path[0]]:
 #                             nodes[path[0]].append(dep)
-

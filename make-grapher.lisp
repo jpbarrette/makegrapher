@@ -3,8 +3,7 @@
 
 ;(in-package :com.rrette.make-grapher)
 
-(load "utils.lisp")
-
+(load "utils")
 
 (require 'asdf)
 (asdf:operate 'asdf:load-op 'cl-ppcre)
