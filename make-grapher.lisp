@@ -180,6 +180,7 @@
 	 (unless entry-p
 	   (return))
 	 (let ((*pretty-print* nil))
+     (declare (special *pretty-print*))
 	   (if (is-pattern target)
 	       (expand-target target dependencies targets)
 	       (hash-table-update! target targets deps
