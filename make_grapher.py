@@ -591,7 +591,6 @@ if __name__ == "__main__":
         filteredTree = filteredTree.filterExtraDeps()
     if connected:
         c = filteredTree.connectedGraphs(connectedStarts, maxDepth)
-        pdb.set_trace()
         filteredTree = MakeTree(nodes = c[0][connectedStarts[0]])
     if outputFile is not None:
         filteredTree.graphVizExport(outputFile, sortDotEntries = sortDotEntries)
