@@ -1,3 +1,4 @@
+(in-package :make-grapher)
 
 (defun string-replace (new old text)
   (let ((index (search old text)))
