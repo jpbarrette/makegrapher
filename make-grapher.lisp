@@ -1,25 +1,9 @@
 (declaim (optimize (speed 0) (space 0) (compilation-speed 0) (safety 3) (debug 3)))
 ;(declaim (optimize (speed 3) (space 3) (compilation-speed 0) (safety 0) (debug 0)))
 
-;(in-package :com.rrette.make-grapher)
+(in-package :make-grapher)
 
-(load "utils")
-
-(require 'asdf)
-(asdf:operate 'asdf:load-op 'getopt)
-(asdf:operate 'asdf:load-op 'cl-ppcre)
-(asdf:operate 'asdf:load-op 'cl-graph)
-(asdf:operate 'asdf:load-op 'cl-containers)
-(asdf:operate 'asdf:load-op 'moptilities)
-(asdf:operate 'asdf:load-op 'metabang-bind)
-(asdf:operate 'asdf:load-op 'ironclad)
-
-(require 'getopt)
-(require 'cl-ppcre)
-(require 'cl-graph)
-(require 'cl-containers)
-(require 'moptilities)
-(require 'ironclad)
+;(load "utils")
 
 (defparameter *pattern-node-re* (cl-ppcre:create-scanner "%"))
 
@@ -176,6 +160,8 @@
 (defparameter *graph-cache* (make-hash-table :test #'equal) 
   "This is the graph cache, by digest of streams")
 
+(defgeneric create-graph-from-file (filename &key graph-type))
+
 (defmethod create-graph-from-file :around ((s string) &key graph-type)
   (declare (ignore graph-type))
   (let* ((digest (ironclad:byte-array-to-hex-string 
@@ -185,6 +171,8 @@
       (setf graph (call-next-method))
       (setf (gethash digest *graph-cache*) graph))
     graph))
+
+(defgeneric create-graph-from-stream (stream &key graph-type))
 
 (defmethod create-graph-from-stream (stream &key (graph-type 'cl-graph:dot-graph))
   (let ((graph-creator (create-graph-creator))
@@ -215,9 +203,10 @@ the given regex pattern"
   (let ((scanner (cl-ppcre:create-scanner pattern)))
     (make-projection-graph graph (lambda (v) (cl-ppcre:scan scanner v)))))
 
-(defun seed-in (graph text)
+(defun seed-in (graph &rest texts)
   "This function will seed in the graph all targets that contains the given text"
-  (make-projection-graph graph (lambda (v) (search text (cl-graph:element v)))))
+  (make-projection-graph graph (lambda (v) (loop for text in texts 
+					 thereis (search text (cl-graph:element v))))))
 
 #|(defun seed-rebuilding-targets ()
   "This function will seed any dependency for which target is done, 
@@ -234,6 +223,8 @@ but is gonna to be built again because of one of them."
       deps)))|#
       
 
+(defgeneric make-projection-graph (old-graph test-fn &key new-graph))
+
 (defmethod make-projection-graph (old-graph
 				  test-fn
 				  &key
@@ -242,23 +233,24 @@ but is gonna to be built again because of one of them."
   (let ((paths nil)
 	(visited-graph (cl-graph::make-container 'cl-graph:dot-graph ; This will keep visited node visited.
 						   :vertex-test #'equal
-						   :default-edge-type :directed)))
+						   :default-edge-type :directed))
+	(current-vertex nil))
     (cl-graph:iterate-vertexes old-graph
 			       (lambda (vertex)
 				 (when (funcall test-fn vertex)
 				   (setf paths (push (list vertex) paths))
 				   (cl-graph:add-vertex new-graph (cl-graph:element vertex)))))
+    (format t "paths: ~A" paths)
     (loop (unless paths (return)) ; loop until we visited all the paths.
        (let* ((path (pop paths))
 	      (first-vertex (car path))
-	      (current-vertex first-vertex)
 	      (last-vertex (car (last path)))
 	      (deps (cl-graph:child-vertexes last-vertex)))
 	 (when (not (eq current-vertex first-vertex))
 	   (format t "current vertex: ~A~%" first-vertex)
-	   (setf current-vertex first-vertex)
-	   (break))
+	   (setf current-vertex first-vertex))
 	 (dolist (dep deps)
+	   (format t " current path: ~A~%" path)
 	   (if-bind (visited-vertex (cl-graph:find-vertex visited-graph (cl-graph:element dep) nil))
 		    ;; the node was visited, the remote vertices should be the filtered vertices
 		    (cl-graph:iterate-edges visited-vertex 
@@ -285,13 +277,15 @@ but is gonna to be built again because of one of them."
   (with-open-file (stream filename :direction :output :if-exists :supersede)
     (setf (cl-graph:dot-attributes graph) '(:rankdir "LR"
 					  :size (8 10)
-					  :rotate 90
 					  :ratio :auto))
     (cl-graph:graph->dot graph stream
-			 :vertex-labeler (lambda (vertex stream)
-					   (format stream "~(~A~)" (cl-graph:element vertex)))
-			 :edge-labeler (lambda (edge stream)
-					 (declare (ignore stream edge))))))
+			 :vertex-key (lambda (vertex)
+				       (format nil "\"~A\"" (cl-graph:element vertex)))
+			 :edge-labeler (lambda (e stream)
+					 (declare (ignore e stream)))
+			 :edge-formatter (lambda (e stream)
+					   (declare (ignore e stream))))))
+			 
 
 
 (defun main (argv)
