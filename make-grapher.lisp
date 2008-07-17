@@ -240,33 +240,39 @@ but is gonna to be built again because of one of them."
 				 (when (funcall test-fn vertex)
 				   (setf paths (push (list vertex) paths))
 				   (cl-graph:add-vertex new-graph (cl-graph:element vertex)))))
-    (format t "paths: ~A" paths)
+    (format t "paths: ~A~%" paths)
     (loop (unless paths (return)) ; loop until we visited all the paths.
        (let* ((path (pop paths))
 	      (first-vertex (car path))
 	      (last-vertex (car (last path)))
-	      (deps (cl-graph:child-vertexes last-vertex)))
+	      (deps (remove-duplicates (cl-graph:child-vertexes last-vertex))))
 	 (when (not (eq current-vertex first-vertex))
 	   (format t "current vertex: ~A~%" first-vertex)
 	   (setf current-vertex first-vertex))
+	 ;; iterate though the depdendencies
 	 (dolist (dep deps)
-	   (format t " current path: ~A~%" path)
-	   (if-bind (visited-vertex (cl-graph:find-vertex visited-graph (cl-graph:element dep) nil))
-		    ;; the node was visited, the remote vertices should be the filtered vertices
-		    (cl-graph:iterate-edges visited-vertex 
-					    (lambda (edge)
-					      (cl-graph:add-edge-between-vertexes new-graph
-										  (cl-graph:vertex-1 edge) (cl-graph:vertex-2 edge))))
-		    ;; the node ins't visited yet.
-		    (let ((vertex (cl-graph:find-vertex new-graph (cl-graph:element dep) nil)))
-		      (cl-graph:add-vertex visited-graph (cl-graph:element dep))
-		      (cond (vertex
-			     (cl-graph:add-edge-between-vertexes new-graph (cl-graph:element first-vertex) (cl-graph:element vertex))
-			     (dolist (path-vertex (cdr path))
-			       (cl-graph:add-edge-between-vertexes visited-graph (cl-graph:element path-vertex) (cl-graph:element vertex))))
-			    (t 
-			     (setf paths (push (append path (list dep)) paths))
-			     #|(break)|#))))))))
+	   (let ((print-debug (string= (cl-graph:element first-vertex) "../tmp/build/wsd_path_built_rtdata_doc")))
+	     (when print-debug
+	       (format t " current path: ~A, current dep: ~A~%" path dep))
+	   (let ((vertex (cl-graph:find-vertex new-graph (cl-graph:element dep) nil)))
+	     (cond (vertex
+		    (cl-graph:add-edge-between-vertexes new-graph (cl-graph:element first-vertex) (cl-graph:element vertex))
+		    (dolist (path-vertex (cdr path))
+		      (cl-graph:add-edge-between-vertexes visited-graph (cl-graph:element path-vertex) (cl-graph:element vertex))))
+		   (t 
+		    (if-bind (visited-vertex (cl-graph:find-vertex visited-graph (cl-graph:element dep) nil))
+			     (progn 
+			       (when print-debug (format t "  vertex: ~A~% is visited" visited-vertex))
+			       ;; the node was visited, the remote vertices should be the filtered vertices
+			       (cl-graph:iterate-edges visited-vertex 
+						       (lambda (edge)
+							 (cl-graph:add-edge-between-vertexes 
+							  new-graph
+							  (cl-graph:vertex-1 edge) (cl-graph:vertex-2 edge)))))
+			     ;; the node ins't visited yet.
+			     (progn 
+			       (cl-graph:add-vertex visited-graph (cl-graph:element dep))
+			       (setf paths (push (append path (list dep)) paths))))))))))))
   new-graph)
 		    
 

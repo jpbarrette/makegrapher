@@ -9,6 +9,18 @@
 		     new 
 		     (subseq text (+ index (length old)))))))
 
+(defmacro walk (form)
+  (etypecase form
+    (atom ; terminating base case
+     form)
+    (cons
+     `(let ((result (,(first form) ,@(mapcar (lambda (arg) `(walk ,arg))
+					     (rest form)))))
+	(format t "~S => ~S~%" ',form result)
+	result))))
+
+;(walk (list (+ 1 2) '(1 2 3) (* 2 3)))
+
 
 
 (defun split (string &key (char #\Space) (accept-empty nil))

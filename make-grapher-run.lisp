@@ -1,3 +1,4 @@
+(in-package :make-grapher)
 
 (graphviz-export 
  (seed-in (create-graph-from-file "Makefile.complete.mk") "../tmp/build")
