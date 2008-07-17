@@ -7,7 +7,6 @@
   	       :cl-graph 
 	       :cl-containers 
 	       :getopt	     
-	       :moptilities 
 	       :metabang-bind
 	       :ironclad)
   :components ((:file "make-grapher" :depends-on ("utils"))
