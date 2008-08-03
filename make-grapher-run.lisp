@@ -8,3 +8,6 @@
 
 
 (main '("sbcl" "-T" "Makefile.complete.mk" "-o" "test.dot"))
+
+(let ((graph (create-graph-from-file "Makefile.complete.mk")))
+  (get-highest-edge graph source (lambda (vertex) (declare (ignore vertex)))))

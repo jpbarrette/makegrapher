@@ -281,17 +281,17 @@ but is gonna to be built again because of one of them."
 
 (defun graphviz-export (graph filename)
   (with-open-file (stream filename :direction :output :if-exists :supersede)
-    (setf (cl-graph:dot-attributes graph) '(:rankdir "LR"
-					  :size (8 10)
-					  :ratio :auto))
-    (cl-graph:graph->dot graph stream
-			 :vertex-key (lambda (vertex)
-				       (format nil "\"~A\"" (cl-graph:element vertex)))
-			 :edge-labeler (lambda (e stream)
-					 (declare (ignore e stream)))
-			 :edge-formatter (lambda (e stream)
-					   (declare (ignore e stream))))))
-			 
+    (setf (dot-attributes graph) '(:rankdir "LR"
+				   :size (8 10)
+				   :ratio :auto))
+    (graph->dot graph stream
+		:vertex-key (lambda (vertex)
+			      (format nil "\"~A\"" (cl-graph:element vertex)))
+		:edge-labeler (lambda (e stream)
+				(declare (ignore e stream)))
+		:edge-formatter (lambda (e stream)
+				  (declare (ignore e stream))))))
+
 
 
 (defun main (argv)

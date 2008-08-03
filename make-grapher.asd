@@ -9,6 +9,7 @@
 	       :getopt	     
 	       :metabang-bind
 	       :ironclad)
-  :components ((:file "make-grapher" :depends-on ("utils"))
+  :components ((:file "identify-subgraph" :depends-on ("make-grapher"))
+	       (:file "make-grapher" :depends-on ("utils"))
                (:file "utils" :depends-on ("package"))
 	       (:file "package")))
