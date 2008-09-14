@@ -145,8 +145,8 @@
 	     (declare (special *pretty-print*))
 	     (if (is-pattern target)
 		 (expand-target target dependencies targets)
-		 (hash-table-update! target targets deps
-				     (delete-duplicates (append dependencies deps) :test #'string=)))))))
+		 (hash-table-update! (target targets deps)
+		   (delete-duplicates (append dependencies deps) :test #'string=)))))))
     (with-hash-table-iterator 
 	(my-iterator targets)
       (loop 

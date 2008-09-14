@@ -1,10 +1,9 @@
 (in-package :make-grapher)
-
-
+;(require :mathstats)
 (declaim (optimize (speed 0) (space 0) (compilation-speed 0) (safety 3) (debug 3)))
 ;(declaim (optimize (speed 3) (space 3) (compilation-speed 0) (safety 0) (debug 0)))
 
-(in-package :make-grapher)
+;(in-package :make-grapher)
 
 (defstruct (vertex-datum (:conc-name node-))
   (weight 0)
@@ -31,15 +30,16 @@
 					  (make-edge-datum))))
     (values data)))
 
-(defgeneric get-edges-score-for-vertex (graph source-vertex))
+(defgeneric get-edges-score-for-vertex (graph source-vertex) )
+;;   :documentation "Returns a hash-table with edges 
+;; has keys and edge-datum as values. The second value is 
+;; the highest scored edge")
 
 (defmethod get-edges-score-for-vertex ((graph cl-graph:basic-graph) (source cl-graph:basic-vertex))
   ;; initialize
   (let ((vertex-data (initialize-vertex-data graph))
 	(edge-data (initialize-edge-data graph))
-        (queue (make-container 'basic-queue))
-	(highest-score 0)
-	(highest-edge nil))
+        (queue (make-container 'basic-queue)))
     (let ((source-datum (item-at vertex-data source))
 	  (leaves (make-container 'basic-queue))
 	  (farthest-vertices (make-container 'stack-container)))
@@ -110,29 +110,44 @@
 				     (child (item-at vertex-data child-vertex))
 				     (edge-datum (item-at edge-data edge)))
 				(when (< (node-distance child) (node-distance current))
-				  (setf (edge-score edge-datum) (* below-score (/ (node-weight child) (node-weight current))))
-				  (when (< highest-score (edge-score edge-datum))
-				    (setf highest-score (edge-score edge-datum)
-					  highest-edge edge)))))))
+				  (setf (edge-score edge-datum) (* below-score (/ (node-weight child) (node-weight current)))))))))
 				    
 	   (pop-item farthest-vertices)))
-      highest-edge))
+      edge-data))
 
-(defgeneric get-highest-edge (graph source-vertex))
+;(defgeneric get-highest-edge (graph))
 
-(defmethod get-highest-edge (graph source-vertex)
-  (iterate-vertexes 
-   graph
-   (lambda (vertex)
-     (
-
-
+(defmethod get-highest-edge ((graph cl-graph:basic-graph))
+  (let ((total-edges-score (make-hash-table :test #'equal))
+	(highest-score 0)
+	(highest-edge nil))
+    (iterate-vertexes 
+     graph
+     (lambda (vertex)
+       (let ((edges-scores (get-edges-score-for-vertex graph vertex)))
+	 (iterate-key-value edges-scores 
+			    (lambda (edge edge-datum)
+			      (hash-table-update! (edge total-edges-score e-datum :default 0)
+				(+ e-datum (edge-score edge-datum))))))))
+    (with-hash-table-iterator 
+	(my-iterator total-edges-score)
+      (loop
+	 (multiple-value-bind (entry-p edge edge-datum) (my-iterator)
+	   (unless entry-p
+	     (return))
+	   (format t "edge score: ~A => ~A~%" edge edge-datum)
+	   (when (and edge-datum (> edge-datum highest-score))
+	     (setf highest-score edge-datum
+		   highest-edge edge)))))
+    highest-edge))
 
 
 (defgeneric remove-most-critical-edge (graph source))
 
 (defmethod remove-most-critical-edge (graph source)
-  (delete-edge graph (get-highest-edge graph source)))
+  (let ((most-critical-edge (get-highest-edge graph)))
+    (delete-edge graph most-critical-edge)
+    most-critical-edge))
 
 ;;; make a simple graph
 (defun test ()
@@ -140,7 +155,7 @@
     (loop for (v1 . v2) in '((a . b) (a . c) (b . d) (c . d) (c . e) (d . f) (e . f) (e . g)) do
 	 (cl-graph:add-edge-between-vertexes g v1 v2))
     (let ((source (cl-graph:find-vertex g 'a)))
-      (remove-most-critical-edge g source)
+      (format t "critical edge: ~A~%" (remove-most-critical-edge g source))
       (graphviz-export g "test.dot"))))
 
   

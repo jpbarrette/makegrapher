@@ -55,12 +55,12 @@ if there were an empty string between them."
        ,entry-p)))
 		
 
-(defmacro hash-table-update! (key hash var &rest body)
+(defmacro hash-table-update! ((key hash var &key (default nil default-supplied-p)) &body body)
   (with-syms (k h)
     `(let ((,k ,key)
 	   (,h ,hash))
        (setf (gethash ,k ,h)
-	     (let ((,var (gethash ,k ,h)))
+	     (let ((,var ,(append (list 'gethash k h) (if default-supplied-p (list default) nil))))
 		,@body)))))
 
 (defmacro when-bind ((var test) &body body)
